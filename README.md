@@ -1,6 +1,7 @@
-***suite2p_tools***
-class s2p
-parameters
+**suite2p_tools** <br>
+**class s2p** <br>
+**parameters** <br>
+    
     # paths
     - self.read_path     : str, path to directory with data files (.npy and .bin)
     - self.save_path     : str, path to directory for saving. (Default) same as read_path
@@ -35,7 +36,8 @@ parameters
     - self.dfof          : ndarray (ROIs x timepoints), delta F over F
 
 
-functions for external use
+**functions for external use** <br>
+    
     - self.__init__(read_path, save_path=None)
         > initialize the class object s2p
         > INPUTS:
@@ -66,7 +68,8 @@ functions for external use
         > OUTPUTS: If filename is specified, figure saved as .tif. Otherwise, none.
         > RETURNS: None
 
-functions for internal use
+**functions for internal use** <br>
+    
     - self.read_npy(filename)
         > Loads data from .npy
         > INPUTS:
@@ -86,8 +89,9 @@ functions for internal use
                 ndarray (ROIs x timepoints), delta F over F
 
 
-class Timer
-functions
+**class Timer** <br>
+**functions**
+    
     - self.__init__()
         > Initialize timer with current time
         > INPUTS: None
