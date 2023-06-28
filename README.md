@@ -1,4 +1,4 @@
-suite2p_tools
+***suite2p_tools***
 class s2p
 parameters
     # paths
