@@ -44,23 +44,23 @@
 - self.__init__(read_path, save_path=None)
     - Initializes the class object s2p
     - INPUTS:
-        - read_path : str
+        - read_path : str <br>
             path to directory with data files (.npy and .bin)
-        - save_path : str
+        - save_path : str <br>
             path to directory for saving. If undefined, same as read_path.
-    - OUTPUTS:
+    - OUTPUTS: <br>
         Parameters listed above
     - RETURNS: None
 
 - self.im_plot(plottype, plot=True, filename=None)
     - Sets parameters for plotting according to plot type.
     - INPUTS:
-        - plottype : str
-            'avg_bin'    = plots the registered binary data averaged over time
-            'real_cells' = plots the real cells in peak intensity
+        - plottype : str <br>
+            - 'avg_bin'    = plots the registered binary data averaged over time
+            - 'real_cells' = plots the real cells in peak intensity
         - plot : bool
             Whether to show plot or not. (Default) True
-        - filename : str
+        - filename : str <br>
             Filename of figure to save. If filename is not set, the figure will NOT be saved. (Default) None
     - OUTPUTS: If filename is specified, figure saved as .tif. Otherwise, none.
     - RETURNS: None
@@ -75,11 +75,11 @@
 - self.read_npy(filename)
     - Loads data from .npy
     - INPUTS:
-        - filename : str
+        - filename : str <br>
             filename of the .npy data file
     - OUTPUTS: None
     - RETURNS:
-        - data
+        - data <br>
             ndarray (ROIs x timepoints), data stored in the .npy data file
 
 - self.cal_dfof()
