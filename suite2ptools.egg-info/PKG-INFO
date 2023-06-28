@@ -1,0 +1,18 @@
+Metadata-Version: 2.1
+Name: suite2ptools
+Version: 0.1.0
+Summary: Nuclei segmentation and analyzer
+Home-page: https://github.com/fursham-h/ng_tools
+Author: gabrielemilioherreraoropeza
+Author-email: fursham.hamid@kcl.ac.uk
+License: MIT
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Programming Language :: Python
+Classifier: Programming Language :: Python :: 3
+Classifier: Programming Language :: Python :: 3.6
+Classifier: Programming Language :: Python :: Implementation :: CPython
+Classifier: Programming Language :: Python :: Implementation :: PyPy
+Requires-Python: >=3.7.0
+Description-Content-Type: text/markdown
+
+Nuclei segmentation and analyzer
