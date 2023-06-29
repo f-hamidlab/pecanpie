@@ -12,11 +12,16 @@ import suite2p_tools as st
 # ------------------------------------------------------------------#
 #                            load data                              #
 # ------------------------------------------------------------------#
-# set filepath to outputs folder
-filepath = '/media/cdn-bc/RAID/Datasets/Harris_BioRxiv_2016_suite2p/outputs/suite2p/plane0/'
+# set filepath to outputs folder of original dataset
+# filepath = '/media/cdn-bc/RAID/Datasets/Harris_BioRxiv_2016_suite2p/outputs/suite2p/plane0/'
+
+# set filepath to test dataset
+filepath = '/home/jane/PycharmProjects/Suite2p/testdata/originals/'
+savepath = '/home/jane/PycharmProjects/Suite2p/testdata/outputs/'
 
 # load .npy bindata from read_path
-s2p = st.s2p(filepath)
+# s2p = st.s2p(filepath)  # for original dataset
+s2p = st.s2p(filepath, savepath)  # for test dataset
 
 # initialize plot average fluorescence
 s2p.im_plot('avg_bin', plot=True, filename='average_binary.tif')

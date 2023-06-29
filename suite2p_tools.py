@@ -50,8 +50,12 @@ class s2p(object):
         self.Fneu = self.read_npy('Fneu.npy')
         self.spks = self.read_npy('spks.npy')
         self.stat = self.read_npy('stat.npy')
-        ops = self.read_npy('ops.npy')
-        self.ops = ops.item()
+        self.ops = self.read_npy('ops.npy')
+        try:
+            self.ops = self.ops.item()
+        except NameError:
+            print("loading trimmed dataset...")
+
         self.iscell = self.read_npy('iscell.npy')
         # if none of the above exist, gives an error.
         if (self.F is None) & (self.Fneu is None) & (self.spks is None) & (self.stat is None) & (self.ops is None) \
@@ -62,7 +66,7 @@ class s2p(object):
         # load .bin file if it exists
         if os.path.isfile(self.read_path + 'data.bin'):
             # opens the registered binary
-            f = open(self.ops['reg_file'], 'rb')
+            f = open(self.read_path + 'data.bin', 'rb')
             print("Reading .bin file...")
             self.bindata = np.fromfile(f, dtype=np.int16)
             f.close()
@@ -74,10 +78,11 @@ class s2p(object):
             t.toc()  # print elapsed time
 
             # trimming image to usable field-of-view
-            print("Trimming binary data...")
-            self.bindata = self.bindata[:, self.ops['yrange'][0]: self.ops['yrange'][1],
-                           self.ops['xrange'][0]:self.ops['xrange'][1]]
-            t.toc()  # print elapsed time
+            # TODO: check that the trimmed data match the coordinates of cells in stats
+            # print("Trimming binary data...")
+            # self.bindata = self.bindata[:, self.ops['yrange'][0]: self.ops['yrange'][1],
+            #                self.ops['xrange'][0]:self.ops['xrange'][1]]
+            # t.toc()  # print elapsed time
         else:
             self.bindata = None
             print("data.bin does not exist. Registered images are not loaded.")
@@ -239,15 +244,15 @@ class s2p(object):
         # determining the canvas
         if k == 0:  # the first plot
             self.im[k]['canvas'] = 0
-        elif self.im[k-1]['plot'] == 0:  # the previous plot is not shown
-            self.im[k]['canvas'] = self.im[k-1]['canvas']
+        elif self.im[k - 1]['plot'] == 0:  # the previous plot is not shown
+            self.im[k]['canvas'] = self.im[k - 1]['canvas']
         else:
-            self.im[k]['canvas'] = self.im[k-1]['canvas'] + 1
+            self.im[k]['canvas'] = self.im[k - 1]['canvas'] + 1
 
         self.im[k]['xlabel'] = '(pixels)'
         self.im[k]['ylabel'] = '(pixels)'
-        self.im[k]['xlim'] = [0, self.im[k]['data'].shape[1]-1]
-        self.im[k]['ylim'] = [0, self.im[k]['data'].shape[0]-1]
+        self.im[k]['xlim'] = [0, self.im[k]['data'].shape[1] - 1]
+        self.im[k]['ylim'] = [0, self.im[k]['data'].shape[0] - 1]
 
         self.im[k]['plot'] = plot
         self.im[k]['filename'] = filename

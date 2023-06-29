@@ -25,7 +25,7 @@ REQUIRED = [
     'numpy', 'matplotlib'
 ]
 # Other required packages which are already installed
-# 'os', 'time'
+# 'os', 'time', 'math'
 
 # What packages are optional?
 EXTRAS = {
