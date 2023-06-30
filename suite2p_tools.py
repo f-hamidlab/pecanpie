@@ -10,6 +10,7 @@ import numpy as np
 import matplotlib as mpl
 import matplotlib.pyplot as plt
 import os
+import pandas as pd
 import pickle
 import time
 
@@ -108,6 +109,10 @@ class s2p(object):
         # list of dictionaries to store image data for plot/saving
         self.im = [{}]
 
+        # DataFrame for storing metadata of ROIs
+        self.metadata = pd.DataFrame()
+        self.create_dataframe()
+
         # by default selected cells are all real cells
         if self.iscell is not None:
             k = np.nonzero(self.iscell[:, 0])
@@ -180,6 +185,39 @@ class s2p(object):
     # ------------------------------------------------------------------#
     #                           data analysis                           #
     # ------------------------------------------------------------------#
+
+    # ------------------------------------------------------------------#
+    #                   create DataFrame for metadata                   #
+    # ------------------------------------------------------------------#
+
+    def create_dataframe(self):
+        """
+        Create a DataFrame for storing metadata of cells. Insert existing data from self.stat and self.iscell.
+
+        Parameters
+        ----------
+        None.
+
+        Returns
+        -------
+        None.
+
+        """
+        def get_data_from_stat(ncells, item, col_name):
+            data = np.zeros(ncells)
+            for n in range(0, ncells):
+                data[n] = self.stat[n][item]
+            self.metadata[col_name] = data
+
+        self.metadata['iscell'] = self.iscell[:, 0]
+
+        ncells = len(self.stat)
+        get_data_from_stat(ncells, 'npix', 'area')
+        get_data_from_stat(ncells, 'radius', 'radius')
+        get_data_from_stat(ncells, 'aspect_ratio', 'aspect_ratio')
+        get_data_from_stat(ncells, 'compact', 'compact')
+        get_data_from_stat(ncells, 'solidity', 'solidity')
+
 
     # ------------------------------------------------------------------#
     #                          data visualisation                       #

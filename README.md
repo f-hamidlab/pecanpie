@@ -35,10 +35,11 @@
     - ['filename'] : str, filename of figure to save.
 
 ### Options and intermediate outputs
-| Parameter            | Data Type  | Dimensions        | Description                                               |
-| :------------------- | :--------- | :---------------- | :-------------------------------------------------------- |
-| self.selected_cells  | ndarray    | N x 1             | indexes to selected cells <br>(Default) list of cells identified in suite2p |
-| self.dfof            | ndarray    | ROIs x timepoints | delta F over F                                            |
+| Parameter           | Data Type | Dimensions        | Description                                                                        |
+|:--------------------|:----------|:------------------|:-----------------------------------------------------------------------------------|
+| self.selected_cells | ndarray   | N x 1             | indexes to selected cells <br>(Default) list of cells identified in suite2p        |
+| self.dfof           | ndarray   | ROIs x timepoints | delta F over F                                                                     |
+| self.df             | DataFrame | ROIs x properties | columns include 'iscell', 'area', 'radius', 'aspect_ratio', 'compact', 'solidity'  |
 
 ## Functions for external use
 - self.__init__(read_path, save_path=None)
@@ -57,7 +58,7 @@
     - INPUTS:
         - plottype : str <br>
             - 'avg_bin'    = plots the registered binary data averaged over time
-            - 'real_cells' = plots the real cells in peak intensity
+            - 'selected_cells' = plots the selected cells in peak delta F over F intensity
         - plot : bool
             Whether to show plot or not. (Default) True
         - filename : str <br>
@@ -72,6 +73,12 @@
     - RETURNS: None
 
 ## Functions for internal use
+- self.create_dataframe()
+    - Create a DataFrame for storing metadata of cells. Insert existing data from self.stat and self.iscell.
+    - INPUTS: None
+    - OUTPUTS:
+        - self.df: DataFrame
+    - RETURNS: None
 - self.read_npy(filename)
     - Loads data from .npy
     - INPUTS:
