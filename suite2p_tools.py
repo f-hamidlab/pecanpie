@@ -1,18 +1,20 @@
 # This class object loads, processes, visualises data output from suite2p
 # Author                   : Jane Ling
 # Date of creation         : 22/06/2023
-# Date of last modification: 28/06/2023
+# Date of last modification: 05/07/2023
+
 
 # ------------------------------------------------------------------#
 #                         load packages                             #
 # ------------------------------------------------------------------#
 import numpy as np
+import math
 import matplotlib as mpl
 import matplotlib.pyplot as plt
 import os
 import pandas as pd
 import pickle
-from skimage import measure
+from skimage.measure import regionprops
 from skimage.morphology import disk, binary_closing, binary_opening
 import time
 
@@ -135,11 +137,12 @@ class s2p(object):
         # DataFrame for storing metadata of ROIs
         self.ori_metadata = pd.DataFrame()  # original metadata calculated by suite2p for all ROIs
         self.create_ori_metadata()  # initialize values from stat
-        d = {'ROInum': self.cells_to_process}
-        self.metadata = pd.DataFrame(data=d)  # metadata of cells_to_process
+
+        self.metadata = pd.DataFrame()  # metadata of cells_to_process
         self.create_metadata()  # initialize values with calculations on stat
 
         # TODO: add other fields if needed
+
         t.toc()  # print elapsed time
 
     def read_npy(self, filename):
@@ -195,91 +198,9 @@ class s2p(object):
 
         return data
 
-    def create_metadata(self):  # TODO: function to modify metadata when selection is changed
-        """
-        Calculate metadata of selected cells, columns include 'ROInum', 'iscell', 'ypix', 'xpix', 'contour', 'area',
-        'radius', 'long_axis', 'short_axis', 'angle', 'aspect_ratio', 'circularity', 'compact', 'solidity'
-
-        Parameters
-        ----------
-        None.
-
-        Returns
-        -------
-        None.
-
-        """
-        # start timer
-        t = Timer()
-
-        print('Calculating metadata...')
-
-        # this line allows the assignment of the array
-        self.metadata = self.metadata.astype(object)
-
-        # define columns for storing parameters to be calculated in later sessions
-        self.metadata['ypix'] = None
-        self.metadata['xpix'] = None
-        self.metadata['contour'] = None
-
-        ncells = len(self.cells_to_process)
-        im0 = np.zeros((self.ops['Ly'], self.ops['Lx']))  # for storing the overall image
-
-        for n in range(ncells):
-            m = self.cells_to_process[n]
-            ypix = self.stat[m]['ypix'][~self.stat[m]['overlap']]
-            xpix = self.stat[m]['xpix'][~self.stat[m]['overlap']]
-            # for storing the image of individual cell, changes over loops
-            im1 = np.zeros((self.ops['Ly'], self.ops['Lx']))
-            im1[ypix, xpix] = 1
-            im1 = binary_closing(im1, disk(4))  # size of disk set to 4 pixels for example data set. The size of disk
-            # should be set according to the maximum 'hole' observed in the dataset.
-            im1 = binary_opening(im1, disk(2))  # size of disk set to 2 pixels, which is the width of axon in the
-            # example dataset
-
-            new_mask = np.transpose(np.array(np.nonzero(im1)))
-            self.metadata['ypix'][n] = new_mask[:, 0]
-            self.metadata['xpix'][n] = new_mask[:, 1]
-            self.metadata['area'][n] = len(new_mask)
-            self.metadata['iscell'][n] = self.iscell[m]
-
-            self.metadata['contour'][n] = np.squeeze(np.array(measure.find_contours(im1 > 0)))
-            if n in self.cells_to_plot:
-                im0 = im0 + im1 * max(self.dfof[n, :])
-
-        t.toc()  # print elapsed time
-        # TODO: move to plotting
-        plt.figure(3)
-        plt.imshow(im0, cmap=plt.cm.gray)
-        plt.title('Filled selected cells')
-        plt.xlabel('(pixels)')
-        plt.ylabel('(pixels)')
-        ax = plt.gca()
-        ax.invert_yaxis()
-
-        print('Displaying masks of cells...')
-        # Display the image and plot all contours found
-        plt.figure(2)
-        plt.imshow(im0, cmap=plt.cm.gray)
-        plt.title('Contours of selected cells')
-        plt.xlabel('(pixels)')
-        plt.ylabel('(pixels)')
-        ax = plt.gca()
-        ax.invert_yaxis()
-        for n in range(ncells):
-            m = self.cells_to_process[n]
-            if m in self.cells_to_plot:
-                plt.plot(self.metadata['contour'][m][:, 1], self.metadata['contour'][m][:, 0], linewidth=1)
-
-        plt.show()
-
-    # ------------------------------------------------------------------#
-    #                           data analysis                           #
-    # ------------------------------------------------------------------#
-
-    # ------------------------------------------------------------------#
-    #                   create DataFrame for metadata                   #
-    # ------------------------------------------------------------------#
+        # ------------------------------------------------------------------#
+        #                   create DataFrame for metadata                   #
+        # ------------------------------------------------------------------#
 
     def create_ori_metadata(self):
         """
@@ -319,6 +240,131 @@ class s2p(object):
 
         else:
             print("object.stat and/or object.iscell does not exist. Cannot create dataframe from suite2p stat.")
+
+    def create_metadata(self):  # TODO: function to modify metadata when selection is changed
+        """
+        Calculate metadata of selected cells, columns include 'ROInum', 'iscell', 'ypix', 'xpix', 'contour', 'area',
+        'centroid', 'major_axis', 'minor_axis', 'orientation', 'aspect_ratio', 'circularity', 'perimeter', 'compact',
+         'solidity'
+
+        Parameters
+        ----------
+        None.
+
+        Returns
+        -------
+        None.
+
+        """
+        # start timer
+        t = Timer()
+
+        print('Calculating metadata...')
+        # define columns for storing parameters to be calculated in later sessions
+        d = {'ROInum': self.cells_to_process, 'ypix': None, 'xpix': None, 'contour': None, 'area': None,
+             'perimeter': None, 'centroid': None, 'orientation': None, 'major_axis': None, 'minor_axis': None,
+             'aspect_ratio': None, 'circularity': None, 'compact': None, 'solidity': None, 'iscell': None}
+        self.metadata = pd.DataFrame(data=d)
+
+        # this line allows the assignment of the array
+        self.metadata = self.metadata.astype(object)
+
+        ncells = len(self.cells_to_process)
+        im0 = np.zeros((self.ops['Ly'], self.ops['Lx']))  # for storing the overall image
+        im2 = im0
+
+        for n in range(ncells):
+            m = self.cells_to_process[n]
+            ypix = self.stat[m]['ypix'][~self.stat[m]['overlap']]
+            xpix = self.stat[m]['xpix'][~self.stat[m]['overlap']]
+            # for storing the image of individual cell, changes over loops
+            im1 = np.zeros((self.ops['Ly'], self.ops['Lx']))
+            im1[ypix, xpix] = 1
+            im1 = binary_closing(im1, disk(4))  # size of disk set to 4 pixels for example data set. The size of disk
+            # should be set according to the maximum 'hole' observed in the dataset.
+            im1 = binary_opening(im1, disk(2))  # size of disk set to 2 pixels, which is the width of axon in the
+            # example dataset
+
+            new_mask = np.transpose(np.array(np.nonzero(im1)))
+            self.metadata['ypix'][n] = new_mask[:, 0]
+            self.metadata['xpix'][n] = new_mask[:, 1]
+            self.metadata['area'][n] = len(new_mask)
+            self.metadata['iscell'][n] = self.iscell[m]
+
+            regions = regionprops(im1.astype('int'))
+            for props in regions:
+                self.metadata['centroid'][n] = props.centroid
+                self.metadata['orientation'][n] = props.orientation
+                self.metadata['major_axis'][n] = props.axis_major_length
+                self.metadata['minor_axis'][n] = props.axis_minor_length
+                self.metadata['perimeter'][n] = props.perimeter
+                self.metadata['solidity'][n] = props.solidity
+
+            if n in self.cells_to_plot:
+                im0 = im0 + im1 * max(self.dfof[n, :])
+                im2 = im2 + im1 * (n+1)  # +1 such that the first ROI won't be labeled as zero
+
+        self.metadata['aspect_ratio'] = self.metadata['major_axis']/self.metadata['minor_axis']
+        # TODO: fix circularity and compact
+        # self.metadata['circularity'] = 4*np.pi * np.dot(self.metadata['area']/(self.metadata['perimeter'] ^ 2))
+
+        t.toc()  # print elapsed time
+        # TODO: move to plotting
+        # plt.figure(3)
+        # plt.imshow(im0, cmap=plt.cm.gray)
+        # plt.title('Filled selected cells')
+        # plt.xlabel('(pixels)')
+        # plt.ylabel('(pixels)')
+        # ax = plt.gca()
+        # ax.invert_yaxis()
+        #
+        # print('Displaying masks of cells...')
+        # # Display the image and plot all contours found
+        # plt.figure(2)
+        # plt.imshow(im0, cmap=plt.cm.gray)
+        # plt.title('Contours of selected cells')
+        # plt.xlabel('(pixels)')
+        # plt.ylabel('(pixels)')
+        # ax = plt.gca()
+        # ax.invert_yaxis()
+        # for n in range(ncells):
+        #     m = self.cells_to_process[n]
+        #     if m in self.cells_to_plot:
+        #         plt.plot(self.metadata['contour'][m][:, 1], self.metadata['contour'][m][:, 0], linewidth=1)
+        #
+        # plt.show()
+        # im2 = im2.astype('int')
+        # regions = regionprops(im2)
+        # plt.figure(4)
+        # plt.imshow(im0, cmap=plt.cm.gray)
+        # plt.title('Axis of fitted ellipse')
+        # plt.xlabel('(pixels)')
+        # plt.ylabel('(pixels)')
+        #
+        # for props in regions:
+        #     y0, x0 = props.centroid
+        #     orientation = props.orientation
+        #     x1 = x0 + math.cos(orientation) * 0.5 * props.axis_minor_length
+        #     y1 = y0 - math.sin(orientation) * 0.5 * props.axis_minor_length
+        #     x2 = x0 - math.sin(orientation) * 0.5 * props.axis_major_length
+        #     y2 = y0 - math.cos(orientation) * 0.5 * props.axis_major_length
+        #
+        #     plt.plot((x0, x1), (y0, y1), '-r', linewidth=1)
+        #     plt.plot((x0, x2), (y0, y2), '-r', linewidth=1)
+        #     plt.plot(x0, y0, '.g', markersize=3)
+        #
+        #     minr, minc, maxr, maxc = props.bbox
+        #     bx = (minc, maxc, maxc, minc, minc)
+        #     by = (minr, minr, maxr, maxr, minr)
+        #     plt.plot(bx, by, '-b', linewidth=1)
+        # ax = plt.gca()
+        # ax.invert_yaxis()
+        # plt.show()
+
+    # ------------------------------------------------------------------#
+    #                           data analysis                           #
+    # ------------------------------------------------------------------#
+
 
     # ------------------------------------------------------------------#
     #                          data visualisation                       #
@@ -458,5 +504,5 @@ class Timer:
     def toc(self):
         """Stop the timer, and report the elapsed time"""
         elapsed_time = time.perf_counter() - self._start_time
-        print(f"Done. Elapsed time: {elapsed_time:0.2f} seconds")
+        print(f"Done. Elapsed time: {elapsed_time:0.4f} seconds")
         self._start_time = time.perf_counter()
