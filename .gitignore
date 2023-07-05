@@ -1,0 +1,11 @@
+__pycache__/
+build
+dist
+.idea
+*.egg-info/
+data/test*
+docs/*
+!docs/*master.ipynb
+
+.DS_Store
+docs/.ipynb_checkpoints/
