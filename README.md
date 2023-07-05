@@ -1,4 +1,19 @@
 **suite2p_tools** <br>
+
+# Installation
+
+```bash
+git clone git@github.com:f-hamidlab/suite2ptools.git
+cd suite2ptools
+
+conda create -n s2ptools python=3.8
+conda activate s2ptools
+pip install .
+
+# or to install suite2ptools in editable mode
+# pip install -e . 
+```
+
 # class s2p
 ## Parameters
 ### Paths
