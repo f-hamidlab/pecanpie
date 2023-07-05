@@ -12,6 +12,8 @@ import matplotlib.pyplot as plt
 import os
 import pandas as pd
 import pickle
+from skimage import measure
+from skimage.morphology import disk, binary_closing, binary_opening
 import time
 
 mpl.use('TkAgg')
@@ -106,28 +108,39 @@ class s2p(object):
         if not os.path.isdir(self.save_path_data):
             os.makedirs(self.save_path_data)
 
+        # calculate delta F over F
+        self.dfof = self.cal_dfof()
+
         # list of dictionaries to store image data for plot/saving
         self.im = [{}]
 
-        # DataFrame for storing metadata of ROIs
-        self.metadata = pd.DataFrame()
-        self.create_dataframe()
-
-        # by default selected cells are all real cells
+        # by default selected cells for plotting are all real cells
         if self.iscell is not None:
             k = np.nonzero(self.iscell[:, 0])
             k = np.array(k)
-            self.selected_cells = k.reshape(-1)
+            self.cells_to_plot = k.reshape(-1)
         else:
-            self.selected_cells = None
-            print("object.iscell is not present. Please define object.selected_cells for further processing and "
+            self.cells_to_plot = None
+            print("object.iscell is not present. Please define object.cells_to_plot for further processing and "
                   "plotting.")
+
+        # by default selected cells for processing are all ROIs
+        if self.stat is not None:
+            self.cells_to_process = np.array(range(len(self.stat)))
+        else:
+            self.cells_to_process = None
+            print("object.stat is not present. Please define object.cells_to_process for further processing and "
+                  "plotting.")
+
+        # DataFrame for storing metadata of ROIs
+        self.ori_metadata = pd.DataFrame()  # original metadata calculated by suite2p for all ROIs
+        self.create_ori_metadata()  # initialize values from stat
+        d = {'ROInum': self.cells_to_process}
+        self.metadata = pd.DataFrame(data=d)  # metadata of cells_to_process
+        self.create_metadata()  # initialize values with calculations on stat
 
         # TODO: add other fields if needed
         t.toc()  # print elapsed time
-
-        # calculate delta F over F
-        self.dfof = self.cal_dfof()
 
     def read_npy(self, filename):
         """
@@ -182,6 +195,84 @@ class s2p(object):
 
         return data
 
+    def create_metadata(self):  # TODO: function to modify metadata when selection is changed
+        """
+        Calculate metadata of selected cells, columns include 'ROInum', 'iscell', 'ypix', 'xpix', 'contour', 'area',
+        'radius', 'long_axis', 'short_axis', 'angle', 'aspect_ratio', 'circularity', 'compact', 'solidity'
+
+        Parameters
+        ----------
+        None.
+
+        Returns
+        -------
+        None.
+
+        """
+        # start timer
+        t = Timer()
+
+        print('Calculating metadata...')
+
+        # this line allows the assignment of the array
+        self.metadata = self.metadata.astype(object)
+
+        # define columns for storing parameters to be calculated in later sessions
+        self.metadata['ypix'] = None
+        self.metadata['xpix'] = None
+        self.metadata['contour'] = None
+
+        ncells = len(self.cells_to_process)
+        im0 = np.zeros((self.ops['Ly'], self.ops['Lx']))  # for storing the overall image
+
+        for n in range(ncells):
+            m = self.cells_to_process[n]
+            ypix = self.stat[m]['ypix'][~self.stat[m]['overlap']]
+            xpix = self.stat[m]['xpix'][~self.stat[m]['overlap']]
+            # for storing the image of individual cell, changes over loops
+            im1 = np.zeros((self.ops['Ly'], self.ops['Lx']))
+            im1[ypix, xpix] = 1
+            im1 = binary_closing(im1, disk(4))  # size of disk set to 4 pixels for example data set. The size of disk
+            # should be set according to the maximum 'hole' observed in the dataset.
+            im1 = binary_opening(im1, disk(2))  # size of disk set to 2 pixels, which is the width of axon in the
+            # example dataset
+
+            new_mask = np.transpose(np.array(np.nonzero(im1)))
+            self.metadata['ypix'][n] = new_mask[:, 0]
+            self.metadata['xpix'][n] = new_mask[:, 1]
+            self.metadata['area'][n] = len(new_mask)
+            self.metadata['iscell'][n] = self.iscell[m]
+
+            self.metadata['contour'][n] = np.squeeze(np.array(measure.find_contours(im1 > 0)))
+            if n in self.cells_to_plot:
+                im0 = im0 + im1 * max(self.dfof[n, :])
+
+        t.toc()  # print elapsed time
+        # TODO: move to plotting
+        plt.figure(3)
+        plt.imshow(im0, cmap=plt.cm.gray)
+        plt.title('Filled selected cells')
+        plt.xlabel('(pixels)')
+        plt.ylabel('(pixels)')
+        ax = plt.gca()
+        ax.invert_yaxis()
+
+        print('Displaying masks of cells...')
+        # Display the image and plot all contours found
+        plt.figure(2)
+        plt.imshow(im0, cmap=plt.cm.gray)
+        plt.title('Contours of selected cells')
+        plt.xlabel('(pixels)')
+        plt.ylabel('(pixels)')
+        ax = plt.gca()
+        ax.invert_yaxis()
+        for n in range(ncells):
+            m = self.cells_to_process[n]
+            if m in self.cells_to_plot:
+                plt.plot(self.metadata['contour'][m][:, 1], self.metadata['contour'][m][:, 0], linewidth=1)
+
+        plt.show()
+
     # ------------------------------------------------------------------#
     #                           data analysis                           #
     # ------------------------------------------------------------------#
@@ -190,7 +281,7 @@ class s2p(object):
     #                   create DataFrame for metadata                   #
     # ------------------------------------------------------------------#
 
-    def create_dataframe(self):
+    def create_ori_metadata(self):
         """
         Create a DataFrame for storing metadata of cells. Insert existing data from self.stat and self.iscell.
 
@@ -203,21 +294,31 @@ class s2p(object):
         None.
 
         """
-        def get_data_from_stat(ncells, item, col_name):
-            data = np.zeros(ncells)
-            for n in range(0, ncells):
-                data[n] = self.stat[n][item]
-            self.metadata[col_name] = data
+        # start timer
+        t = Timer()
 
-        self.metadata['iscell'] = self.iscell[:, 0]
+        print('Creating dataframe from suite2p stat...')
 
-        ncells = len(self.stat)
-        get_data_from_stat(ncells, 'npix', 'area')
-        get_data_from_stat(ncells, 'radius', 'radius')
-        get_data_from_stat(ncells, 'aspect_ratio', 'aspect_ratio')
-        get_data_from_stat(ncells, 'compact', 'compact')
-        get_data_from_stat(ncells, 'solidity', 'solidity')
+        if (self.stat is not None) and (self.iscell is not None):
+            def get_data_from_stat(ncells, item, col_name):
+                data = np.zeros(ncells)
+                for n in range(0, ncells):
+                    data[n] = self.stat[n][item]
+                self.ori_metadata[col_name] = data
 
+            self.ori_metadata['iscell'] = self.iscell[:, 0]
+
+            ncells = len(self.stat)
+            get_data_from_stat(ncells, 'npix', 'area')
+            get_data_from_stat(ncells, 'radius', 'radius')
+            get_data_from_stat(ncells, 'aspect_ratio', 'aspect_ratio')
+            get_data_from_stat(ncells, 'compact', 'compact')
+            get_data_from_stat(ncells, 'solidity', 'solidity')
+
+            t.toc()  # print elapsed time
+
+        else:
+            print("object.stat and/or object.iscell does not exist. Cannot create dataframe from suite2p stat.")
 
     # ------------------------------------------------------------------#
     #                          data visualisation                       #
@@ -263,9 +364,9 @@ class s2p(object):
 
         elif plottype == 'selected_cells':
             im = np.zeros((self.ops['Ly'], self.ops['Lx']))
-            ncells = len(self.selected_cells)
+            ncells = len(self.cells_to_plot)
             for n in range(0, ncells):
-                m = self.selected_cells[n]
+                m = self.cells_to_plot[n]
                 ypix = self.stat[m]['ypix'][~self.stat[m]['overlap']]
                 xpix = self.stat[m]['xpix'][~self.stat[m]['overlap']]
                 im[ypix, xpix] = self.iscell[m, 0] * max(self.dfof[m, :])

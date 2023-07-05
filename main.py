@@ -27,11 +27,12 @@ s2p = st.s2p(filepath, savepath)  # for test dataset
 s2p.im_plot('avg_bin', plot=True, filename='average_binary.tif')
 
 # initialize plot for selected cells at peak intensity
-# s2p.selected_cells = [7, 8]  # for selected specific cells to be plotted
+# s2p.cells_to_plot = [7, 8]  # for selected specific cells to be plotted
 s2p.im_plot('selected_cells', plot=True, filename='selected_cells.tif')
 
 # plot and save figures
 s2p.plot_fig()
+
 
 
 
