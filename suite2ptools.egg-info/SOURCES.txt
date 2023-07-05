@@ -1,7 +1,0 @@
-README.txt
-setup.py
-suite2ptools.egg-info/PKG-INFO
-suite2ptools.egg-info/SOURCES.txt
-suite2ptools.egg-info/dependency_links.txt
-suite2ptools.egg-info/requires.txt
-suite2ptools.egg-info/top_level.txt
