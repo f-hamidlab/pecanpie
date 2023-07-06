@@ -8,22 +8,23 @@
 #                         load packages                             #
 # ------------------------------------------------------------------#
 import suite2p_tools as st
+import numpy as np
 
 # ------------------------------------------------------------------#
 #                            load data                              #
 # ------------------------------------------------------------------#
-# set filepath to outputs folder of original dataset
-# filepath = '/media/cdn-bc/RAID/Datasets/Harris_BioRxiv_2016_suite2p/outputs/suite2p/plane0/'
-
 # set filepath to test dataset
 filepath = 'testdata/originals/'
 savepath = 'testdata/outputs/'
 
-# load .npy bindata from read_path
-# s2p = st.s2p(filepath)  # for original dataset
-s2p = st.s2p(filepath, savepath)  # for test dataset
+# Selecting cells to be processed. If set to None, process all ROIs
+# cells_to_process = np.linspace(0, 49, endpoint=False, dtype='int')
+# Selecting cells to be plotted
+# cells_to_plot = [7, 8]
 
-# s2p.cells_to_plot = [7, 8]  # for selected specific cells to be plotted
+# load .npy bindata from read_path
+s2p = st.s2p(filepath, savepath)  # for test dataset
+# s2p = st.s2p(filepath, savepath, cells_to_process, cells_to_plot)  # for test dataset
 
 # initialize plot average fluorescence
 s2p.im_plot('avg_bin', plot=True, filename='average_binary.tif')

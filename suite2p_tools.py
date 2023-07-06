@@ -114,6 +114,12 @@ class s2p(object):
 
         # if cells_to_process is defined in input, use the defined value
         if cells_to_process is not None:
+            # check if cells to be processed is within the limits of stat
+            arr1 = set(range(len(self.stat)))
+            arr2 = set(cells_to_process)
+            if not arr1.union(arr2) == arr1:  # not a subset
+                raise ValueError(
+                    "object.cells_to_process contains invalid or out-of-range indices. Please modify the selection.")
             self.cells_to_process = cells_to_process
         elif self.stat is not None:  # by default selected cells for processing are all ROIs
             self.cells_to_process = np.array(range(len(self.stat)))
@@ -125,6 +131,12 @@ class s2p(object):
         # if cells_to_plot is defined in input, use the defined value
         if cells_to_plot is not None:
             self.cells_to_plot = cells_to_plot
+            # check if cells to be plotted is a subset of cells to be processed
+            arr1 = set(self.cells_to_process)
+            arr2 = set(self.cells_to_plot)
+            if not arr1.union(arr2) == arr1:  # not a subset
+                raise ValueError(
+                    "object.cells_to_plot is not a subset of object.cells_to_process. Please modify the selection.")
         elif self.iscell is not None:  # by default selected cells for plotting are all real cells
             k = np.nonzero(self.iscell[:, 0])
             k = np.array(k)
@@ -133,12 +145,6 @@ class s2p(object):
             self.cells_to_plot = None
             print("object.iscell is not present. Please define object.cells_to_plot for further processing and "
                   "plotting.")
-
-        # check if cells to be plotted is a subset of cells to be processed
-        arr1 = self.cells_to_plot
-        arr2 = self.cells_to_process
-        if not arr1.union(arr2) == arr1:  # not a subset
-            print('object.cells_to_plot is not a subset of object.cells_to_process. Error may occur in plots.')
 
         # DataFrame for storing metadata
         self.ori_metadata = pd.DataFrame()  # original metadata calculated by suite2p for all ROIs
