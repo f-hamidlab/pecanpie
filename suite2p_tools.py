@@ -28,7 +28,7 @@ mpl.use('TkAgg')
 # ------------------------------------------------------------------#
 class s2p(object):
 
-    def __init__(self, read_path, save_path=None):
+    def __init__(self, read_path, save_path=None, cells_to_process=None, cells_to_plot=None):
         """
         Start suite2p. Load .npy and .bin data. Define other parameters.
 
@@ -112,8 +112,20 @@ class s2p(object):
         # list of dictionaries to store image data for plot/saving
         self.im = [{}]
 
-        # by default selected cells for plotting are all real cells
-        if self.iscell is not None:
+        # if cells_to_process is defined in input, use the defined value
+        if cells_to_process is not None:
+            self.cells_to_process = cells_to_process
+        elif self.stat is not None:  # by default selected cells for processing are all ROIs
+            self.cells_to_process = np.array(range(len(self.stat)))
+        else:
+            self.cells_to_process = None
+            print("object.stat is not present. Please define object.cells_to_process for further processing and "
+                  "plotting.")
+
+        # if cells_to_plot is defined in input, use the defined value
+        if cells_to_plot is not None:
+            self.cells_to_plot = cells_to_plot
+        elif self.iscell is not None:  # by default selected cells for plotting are all real cells
             k = np.nonzero(self.iscell[:, 0])
             k = np.array(k)
             self.cells_to_plot = k.reshape(-1)
@@ -122,13 +134,11 @@ class s2p(object):
             print("object.iscell is not present. Please define object.cells_to_plot for further processing and "
                   "plotting.")
 
-        # by default selected cells for processing are all ROIs
-        if self.stat is not None:
-            self.cells_to_process = np.array(range(len(self.stat)))
-        else:
-            self.cells_to_process = None
-            print("object.stat is not present. Please define object.cells_to_process for further processing and "
-                  "plotting.")
+        # check if cells to be plotted is a subset of cells to be processed
+        arr1 = self.cells_to_plot
+        arr2 = self.cells_to_process
+        if not arr1.union(arr2) == arr1:  # not a subset
+            print('object.cells_to_plot is not a subset of object.cells_to_process. Error may occur in plots.')
 
         # DataFrame for storing metadata
         self.ori_metadata = pd.DataFrame()  # original metadata calculated by suite2p for all ROIs
