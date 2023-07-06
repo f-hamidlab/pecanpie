@@ -23,15 +23,22 @@ savepath = '/home/jane/PycharmProjects/Suite2p/testdata/outputs/'
 # s2p = st.s2p(filepath)  # for original dataset
 s2p = st.s2p(filepath, savepath)  # for test dataset
 
-# # initialize plot average fluorescence
-# s2p.im_plot('avg_bin', plot=True, filename='average_binary.tif')
-#
-# # initialize plot for selected cells at peak intensity
-# # s2p.cells_to_plot = [7, 8]  # for selected specific cells to be plotted
-# s2p.im_plot('selected_cells', plot=True, filename='selected_cells.tif')
-#
-# # plot and save figures
-# s2p.plot_fig()
+# s2p.cells_to_plot = [7, 8]  # for selected specific cells to be plotted
+
+# initialize plot average fluorescence
+s2p.im_plot('avg_bin', plot=True, filename='average_binary.tif')
+
+# initialize plot for selected cells at peak intensity
+s2p.im_plot('selected_cells', plot=True, filename='selected_cells.tif')
+
+# initialize plot for selected cells with contours
+s2p.im_plot('contour', plot=True, filename='contours.tif')
+
+# initialize plot for selected cells with contours and major and minor axes
+s2p.im_plot('axis', plot=True, filename='axes.tif')
+
+# plot and save figures
+s2p.plot_fig()
 
 
 
