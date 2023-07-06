@@ -40,6 +40,13 @@ class s2p(object):
         save_path : str
             Path to folder for saving output files. (Default) same as read_path
 
+        cells_to_process : list
+            Indices to selected cells for data analysis. (Default) list of all ROIs identified in suite2p
+
+        cells_to_plot : list
+            Indices to selected cells for plotting. (Default) list of ROIs identified as cells in suite2p
+
+
         Returns
         -------
         None.
