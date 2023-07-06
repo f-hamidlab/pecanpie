@@ -16,8 +16,8 @@ import suite2p_tools as st
 # filepath = '/media/cdn-bc/RAID/Datasets/Harris_BioRxiv_2016_suite2p/outputs/suite2p/plane0/'
 
 # set filepath to test dataset
-filepath = '/home/jane/PycharmProjects/Suite2p/testdata/originals/'
-savepath = '/home/jane/PycharmProjects/Suite2p/testdata/outputs/'
+filepath = 'testdata/originals/'
+savepath = 'testdata/outputs/'
 
 # load .npy bindata from read_path
 # s2p = st.s2p(filepath)  # for original dataset
