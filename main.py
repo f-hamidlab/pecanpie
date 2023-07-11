@@ -1,7 +1,7 @@
 # This script contains an example pipeline for processing suite2p output
 # Author: Jane Ling
 # Date of creation: 20/06/2023
-# Date of last modification: 05/07/2023
+# Date of last modification: 11/07/2023
 # Scope: For single-channel, single-plane images only
 
 # ------------------------------------------------------------------#
@@ -25,6 +25,18 @@ savepath = 'testdata/outputs/'
 # load .npy bindata from read_path
 s2p = st.s2p(filepath, savepath)  # for test dataset
 # s2p = st.s2p(filepath, savepath, cells_to_process, cells_to_plot)  # for test dataset
+s2p.create_metadata()
+
+# Selecting cells to be processed. If set to None, process all ROIs
+# cells_to_process = np.linspace(0, 5, 4, endpoint=False, dtype='int')
+cells_to_process = [0, 1, 2, 3, 4, 5]
+
+# Selecting cells to be plotted
+cells_to_plot = [0, 2]
+s2p.change_cell_selection(cells_to_process, cells_to_plot)
+# Or for just change in one set of selection, use:
+# s2p.change_cell_selection(cells_to_process)
+# s2p.change_cell_selection(cells_to_plot)
 
 # initialize plot average fluorescence
 s2p.im_plot('avg_bin', plot=True, filename='average_binary.tif')
@@ -40,6 +52,8 @@ s2p.im_plot('axis', plot=True, filename='axes.tif')
 
 # plot and save figures
 s2p.plot_fig()
+
+
 
 
 

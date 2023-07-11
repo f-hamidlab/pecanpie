@@ -1,7 +1,7 @@
 # This class object loads, processes, visualises data output from suite2p
 # Author                   : Jane Ling
 # Date of creation         : 22/06/2023
-# Date of last modification: 05/07/2023
+# Date of last modification: 11/07/2023
 
 
 # ------------------------------------------------------------------#
@@ -72,8 +72,7 @@ class s2p(object):
 
         self.iscell = self.read_npy('iscell.npy')
         # if none of the above exist, gives an error.
-        if (self.F is None) & (self.Fneu is None) & (self.spks is None) & (self.stat is None) & (self.ops is None) \
-                & (self.iscell is None):
+        if(all(x is None for x in [self.F, self.Fneu, self.spks, self.stat, self.ops, self.iscell])):
             raise Exception("No .npy file is found. Please check the data directory.")
         t.toc()  # print elapsed time
 
@@ -119,45 +118,17 @@ class s2p(object):
         # list of dictionaries to store image data for plot/saving
         self.im = [{}]
 
-        # if cells_to_process is defined in input, use the defined value
-        if cells_to_process is not None:
-            # check if cells to be processed is within the limits of stat
-            arr1 = set(range(len(self.stat)))
-            arr2 = set(cells_to_process)
-            if not arr1.union(arr2) == arr1:  # not a subset
-                raise ValueError(
-                    "object.cells_to_process contains invalid or out-of-range indices. Please modify the selection.")
-            self.cells_to_process = cells_to_process
-        elif self.stat is not None:  # by default selected cells for processing are all ROIs
-            self.cells_to_process = np.array(range(len(self.stat)))
-        else:
-            self.cells_to_process = None
-            print("object.stat is not present. Please define object.cells_to_process for further processing and "
-                  "plotting.")
-
-        # if cells_to_plot is defined in input, use the defined value
-        if cells_to_plot is not None:
-            self.cells_to_plot = cells_to_plot
-            # check if cells to be plotted is a subset of cells to be processed
-            arr1 = set(self.cells_to_process)
-            arr2 = set(self.cells_to_plot)
-            if not arr1.union(arr2) == arr1:  # not a subset
-                raise ValueError(
-                    "object.cells_to_plot is not a subset of object.cells_to_process. Please modify the selection.")
-        elif self.iscell is not None:  # by default selected cells for plotting are all real cells
-            k = np.nonzero(self.iscell[:, 0])
-            k = np.array(k)
-            self.cells_to_plot = k.reshape(-1)
-        else:
-            self.cells_to_plot = None
-            print("object.iscell is not present. Please define object.cells_to_plot for further processing and "
-                  "plotting.")
+        # check cell selections and assign values
+        self.cells_to_process = None
+        self.cells_to_plot = None
+        self.check_cells_to_process(cells_to_process)
+        self.check_cells_to_plot(cells_to_plot)
 
         # DataFrame for storing metadata
         self.ori_metadata = pd.DataFrame()  # original metadata calculated by suite2p for all ROIs
         self.create_ori_metadata()  # initialize values from stat
-        self.metadata = pd.DataFrame()  # metadata of cells_to_process
-        self.create_metadata()  # initialize values with calculations on stat
+        self.metadata = pd.DataFrame()  # initialize metadata of cells_to_process
+        self.label_mask = []
 
         # TODO: add other fields if needed
         print('Done object initialization')
@@ -185,6 +156,54 @@ class s2p(object):
             print("Warning: " + filename + " does not exist. Certain functions of this toolbox may be affected.")
         return data
 
+    def check_cells_to_process(self, cells_to_process):
+        # if cells_to_process is defined in input, use the defined value
+        if cells_to_process is not None:
+            # check if cells to be processed is within the limits of stat
+            arr1 = set(range(len(self.stat)))
+            arr2 = set(cells_to_process)
+            if not arr1.union(arr2) == arr1:  # not a subset
+                print("object.cells_to_process is not a subset of the recognised ROIs. Resetting to the default selection.")
+                self.default_cells_to_process()
+            else:
+                self.cells_to_process = cells_to_process
+        else:
+            self.default_cells_to_process()
+
+    def check_cells_to_plot(self, cells_to_plot):
+        # if cells_to_plot is defined in input, use the defined value
+        if cells_to_plot is not None:
+            # check if cells to be plotted is a subset of cells to be processed
+            arr1 = set(self.cells_to_process)
+            arr2 = set(cells_to_plot)
+            if not arr1.union(arr2) == arr1:  # not a subset
+                print("object.cells_to_plot is not a subset of object.cells_to_process. Resetting to the default selection.")
+                self.default_cells_to_plot()
+            else:
+                self.cells_to_plot = cells_to_plot
+        else:
+            self.default_cells_to_plot()
+
+    def default_cells_to_process(self):
+        if self.stat is not None:  # by default selected cells for processing are all ROIs
+            self.cells_to_process = np.array(range(len(self.stat)))
+        else:
+            self.cells_to_process = None
+            print("object.stat is not present. Please define object.cells_to_process for further processing and "
+                  "plotting.")
+
+    def default_cells_to_plot(self):
+        if self.iscell is not None:  # by default selected cells for plotting are all real cells within cells_to_process
+            k = np.nonzero(self.iscell[:, 0])
+            k = np.array(k)
+            k = k.reshape(-1)
+            arr1 = set(self.cells_to_process)
+            arr2 = set(k)
+            self.cells_to_plot = arr1.intersection(arr2)
+        else:
+            self.cells_to_plot = None
+            print("object.iscell is not present. Please define object.cells_to_plot for further processing and "
+                  "plotting.")
     # ------------------------------------------------------------------#
     #                            pre-processing                         #
     # ------------------------------------------------------------------#
@@ -286,10 +305,11 @@ class s2p(object):
 
         # this line allows the assignment of the array
         self.metadata = self.metadata.astype(object)
+        label_mask = np.zeros((self.ops['Ly'], self.ops['Lx']))
 
-        ncells = len(self.cells_to_process)
-        for n in range(ncells):
-            m = self.cells_to_process[n]  # the index to the ROI in stat
+        for n, m in enumerate(self.cells_to_process):
+            # m is the index to the ROI in stat
+            # n is the index to the ROI in the new metadata
             ypix = self.stat[m]['ypix'][~self.stat[m]['overlap']]
             xpix = self.stat[m]['xpix'][~self.stat[m]['overlap']]
 
@@ -300,24 +320,36 @@ class s2p(object):
             # should be set according to the maximum 'hole' observed in the dataset.
             im = binary_opening(im, disk(2))  # size of disk set to 2 pixels, which is the width of axon in the
             # example dataset
+            label_mask = label_mask + im * (n + 1)
 
-            # get indices of non-zero pixels in the mask
-            new_mask = np.transpose(np.array(np.nonzero(im)))
-            self.metadata['ypix'][n] = new_mask[:, 0]
-            self.metadata['xpix'][n] = new_mask[:, 1]
-            self.metadata['area'][n] = len(new_mask)  # number of pixels
-            self.metadata['iscell'][n] = self.iscell[m]  # whether the ROI is identified as a cell in suite2p
-            self.metadata['contour'][n] = np.squeeze(np.array(measure.find_contours(im > 0)))  # contour of ROI
+        # get properties of the region and store in metadata
+        regions = regionprops(label_mask.astype('int'))
+        for props in regions:
+            n = props.label-1
+            self.metadata['centroid'][n] = props.centroid
+            self.metadata['orientation'][n] = props.orientation
+            self.metadata['major_axis'][n] = props.axis_major_length
+            self.metadata['minor_axis'][n] = props.axis_minor_length
+            self.metadata['perimeter'][n] = props.perimeter
+            self.metadata['solidity'][n] = props.solidity
+            self.metadata['area'][n] = props.num_pixels  # number of pixels
+            self.metadata['iscell'][n] = self.iscell[self.cells_to_process[n]]  # whether the ROI is identified as a cell in suite2p
+            self.metadata['contour'][n] = np.squeeze(np.array(measure.find_contours(label_mask == n+1)))  # contour of ROIs
 
-            # get properties of the region and store in metadata
-            regions = regionprops(im.astype('int'))
-            for props in regions:
-                self.metadata['centroid'][n] = props.centroid
-                self.metadata['orientation'][n] = props.orientation
-                self.metadata['major_axis'][n] = props.axis_major_length
-                self.metadata['minor_axis'][n] = props.axis_minor_length
-                self.metadata['perimeter'][n] = props.perimeter
-                self.metadata['solidity'][n] = props.solidity
+        # Trimming metadata to remove zero entries
+        # area of cell has to be more than 1 pixel for calculation of major and minor axis
+        area_threshold = 1
+
+        def switch_val(x):
+            return new_vals[old_vals.index(x)] if x in old_vals else x
+        old_vals = list(self.metadata[self.metadata['area'] <= area_threshold]['ROInum']+1)
+        new_vals = list(np.zeros(len(old_vals)))
+        vc = np.vectorize(switch_val)
+        self.label_mask = vc(label_mask)
+
+        self.metadata = self.metadata.loc[self.metadata['area'] > area_threshold]
+        self.cells_to_process = np.array(self.metadata['ROInum']).astype('int')
+
 
         # calculations for other items in metadata
         self.metadata['aspect_ratio'] = self.metadata['major_axis']/self.metadata['minor_axis']
@@ -325,6 +357,12 @@ class s2p(object):
         # self.metadata['circularity'] = 4*np.pi * np.dot(self.metadata['area']/(self.metadata['perimeter'] ^ 2))
 
         t.toc()  # print elapsed time
+
+    def change_cell_selection(self, cells_to_process=None, cells_to_plot=None):
+        self.check_cells_to_process(cells_to_process)
+        self.check_cells_to_plot(cells_to_plot)
+        self.create_metadata()
+
 
     # ------------------------------------------------------------------#
     #                           data analysis                           #
@@ -377,62 +415,32 @@ class s2p(object):
 
         # for plotting ROIs in peak delta F over F intensity, the mask for ROI is from output of suite2p
         elif plottype == 'selected_cells':
-            im = np.zeros((self.ops['Ly'], self.ops['Lx']))
-
-            ncells = len(self.cells_to_plot)
-            for n in range(0, ncells):
-                m = self.cells_to_plot[n]  # the index to the ROI in stat
-                ypix = self.stat[m]['ypix'][~self.stat[m]['overlap']]
-                xpix = self.stat[m]['xpix'][~self.stat[m]['overlap']]
-                im[ypix, xpix] = max(self.dfof[m, :])
-
-            self.im[k]['imdata'] = im
+            self.im[k]['imdata'] = self.switch_idx_to_intensity()
             self.im[k]['title'] = "Selected cells at peak intensity"
             self.im[k]['cmap'] = 'gray'
             self.im[k]['type'] = 'image'
 
         # for plotting ROIs with their contours after morphological operations
         elif plottype == 'contour':
-            im = np.zeros((self.ops['Ly'], self.ops['Lx']))
-
-            ncells = len(self.cells_to_plot)
             self.im[k]['line_data'] = []
-            for n in range(0, ncells):
-                m = self.cells_to_plot[n]  # the index to the ROI in stat
-                idx = self.metadata.index[self.metadata['ROInum'] == m]  # the index to the ROI in metadata
-
-                # get the gray-scale image of the ROIs in their peak intensity (delta F over F)
-                ypix = self.metadata.loc[idx]['ypix']
-                xpix = self.metadata.loc[idx]['xpix']
-                ypix = ypix.values[0]
-                xpix = xpix.values[0]
-                im[ypix, xpix] = max(self.dfof[m, :])
+            for n in self.cells_to_plot:
+                idx = self.metadata.index[self.metadata['ROInum'] == n]  # the index to the ROI in metadata
 
                 # get the contour of ROI
                 contour = self.metadata.loc[idx]['contour'].values[0]
                 self.im[k]['line_data'].append({'x': contour[:, 1], 'y': contour[:, 0]})
 
-            self.im[k]['imdata'] = im
+            self.im[k]['imdata'] = self.switch_idx_to_intensity()
             self.im[k]['title'] = "Contours of selected cells"
             self.im[k]['cmap'] = 'gray'
             self.im[k]['type'] = 'image & line'
 
         # for plotting ROIs with their contours and axes after morphological operations
         elif plottype == 'axis':
-            im = np.zeros((self.ops['Ly'], self.ops['Lx']))
             self.im[k]['line_data'] = []
 
-            ncells = len(self.cells_to_plot)
-            for n in range(0, ncells):
-                m = self.cells_to_plot[n]  # the index to the ROI in stat
-                idx = self.metadata.index[self.metadata['ROInum'] == m]  # the index to the ROI in metadata
-
-                # get the gray-scale image of the ROIs in their peak intensity (delta F over F)
-                ypix = self.metadata.loc[idx]['ypix']
-                xpix = self.metadata.loc[idx]['xpix']
-                ypix = ypix.values[0]
-                xpix = xpix.values[0]
-                im[ypix, xpix] = max(self.dfof[m, :])
+            for n in self.cells_to_plot:
+                idx = self.metadata.index[self.metadata['ROInum'] == n]  # the index to the ROI in metadata
 
                 # get the contour of ROI
                 contour = self.metadata.loc[idx]['contour'].values[0]
@@ -452,8 +460,7 @@ class s2p(object):
 
                 self.im[k]['line_data'].append({'x': (x0, x1), 'y': (y0, y1), 'linestyle': '-r', 'linewidth': 1})
                 self.im[k]['line_data'].append({'x': (x0, x2), 'y': (y0, y2), 'linestyle': '-r', 'linewidth': 1})
-
-            self.im[k]['imdata'] = im
+            self.im[k]['imdata'] = self.switch_idx_to_intensity()
             self.im[k]['title'] = "Axis of fitted ellipse"
             self.im[k]['cmap'] = 'gray'
             self.im[k]['type'] = 'image & line'
@@ -479,6 +486,25 @@ class s2p(object):
         self.im[k]['filename'] = filename
 
         t.toc()
+
+    def switch_idx_to_intensity(self):
+        def switch_val(x):
+            return new_vals[old_vals.index(x)] if x in old_vals else x
+
+        # get max intensity for each cell
+        max_dfof = np.max(self.dfof, axis=1)  # axis = 1 for the time dimension
+
+        # substitute cells in process but not in plot with 0
+        cells_not_to_plot = np.array(list(filter(lambda x: x not in self.cells_to_plot, self.cells_to_process))).astype('int')
+        max_dfof[cells_not_to_plot] = 0
+
+        # substitute cells to process with intensity
+        max_dfof = max_dfof[self.cells_to_process]
+        old_vals = list(self.cells_to_process+1)
+        new_vals = list(max_dfof)
+        vc = np.vectorize(switch_val)
+
+        return vc(self.label_mask)
 
     def plot_fig(self):
         """
