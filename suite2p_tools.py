@@ -1,7 +1,7 @@
 # This class object loads, processes, visualises data output from suite2p
 # Author                   : Jane Ling
 # Date of creation         : 22/06/2023
-# Date of last modification: 05/07/2023
+# Date of last modification: 11/07/2023
 
 
 # ------------------------------------------------------------------#

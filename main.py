@@ -1,7 +1,7 @@
 # This script contains an example pipeline for processing suite2p output
 # Author: Jane Ling
 # Date of creation: 20/06/2023
-# Date of last modification: 05/07/2023
+# Date of last modification: 11/07/2023
 # Scope: For single-channel, single-plane images only
 
 # ------------------------------------------------------------------#
