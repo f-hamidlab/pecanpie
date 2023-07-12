@@ -20,7 +20,7 @@ from skimage.measure import regionprops
 from skimage.morphology import disk, binary_closing, binary_opening
 import time
 
-mpl.use('TkAgg')
+mpl.use('TkAgg')  # need this line, otherwise a pycharm console error would occur
 
 
 # ------------------------------------------------------------------#
@@ -186,7 +186,7 @@ class s2p(object):
 
     def default_cells_to_process(self):
         if self.stat is not None:  # by default selected cells for processing are all ROIs
-            self.cells_to_process = np.array(range(len(self.stat)))
+            self.cells_to_process = list(range(len(self.stat)))
         else:
             self.cells_to_process = None
             print("object.stat is not present. Please define object.cells_to_process for further processing and "
@@ -199,11 +199,12 @@ class s2p(object):
             k = k.reshape(-1)
             arr1 = set(self.cells_to_process)
             arr2 = set(k)
-            self.cells_to_plot = arr1.intersection(arr2)
+            self.cells_to_plot = list(arr1.intersection(arr2))
         else:
             self.cells_to_plot = None
             print("object.iscell is not present. Please define object.cells_to_plot for further processing and "
                   "plotting.")
+
     # ------------------------------------------------------------------#
     #                            pre-processing                         #
     # ------------------------------------------------------------------#
@@ -278,7 +279,7 @@ class s2p(object):
         else:
             print("object.stat and/or object.iscell does not exist. Cannot create dataframe from suite2p stat.")
 
-    def create_metadata(self):  # TODO: function to modify metadata when selection is changed
+    def create_metadata(self):
         """
         Calculate metadata of selected cells, columns include 'ROInum', 'iscell', 'ypix', 'xpix', 'contour', 'area',
         'centroid', 'major_axis', 'minor_axis', 'orientation', 'aspect_ratio', 'circularity', 'perimeter', 'compact',
@@ -371,7 +372,7 @@ class s2p(object):
     # ------------------------------------------------------------------#
     #                          data visualisation                       #
     # ------------------------------------------------------------------#
-    def im_plot(self, plottype, plot=True, filename=None):  # TODO: add other parameters for more flexible plot
+    def im_plot(self, plottype, plot=True, filename=None, tmp_selection=None):  # TODO: add other parameters for more flexible plot
         """
         Sets parameters for plotting according to plot type.
 
@@ -428,7 +429,8 @@ class s2p(object):
 
                 # get the contour of ROI
                 contour = self.metadata.loc[idx]['contour'].values[0]
-                self.im[k]['line_data'].append({'x': contour[:, 1], 'y': contour[:, 0]})
+                self.im[k]['line_data'].append({'x': contour[:, 1], 'y': contour[:, 0],
+                                                'linestyle': '-g', 'linewidth': 1})
 
             self.im[k]['imdata'] = self.switch_idx_to_intensity()
             self.im[k]['title'] = "Contours of selected cells"
@@ -465,6 +467,26 @@ class s2p(object):
             self.im[k]['cmap'] = 'gray'
             self.im[k]['type'] = 'image & line'
 
+        # plotting all ROIs from stat for cell selection
+        elif plottype == 'cell_selection':
+            self.im[k]['line_data'] = []
+            for n in self.cells_to_plot:
+                idx = self.metadata.index[self.metadata['ROInum'] == n]  # the index to the ROI in metadata
+                # get the contour of ROI
+                contour = self.metadata.loc[idx]['contour'].values[0]
+
+                if n in tmp_selection:
+                    self.im[k]['line_data'].append({'x': contour[:, 1], 'y': contour[:, 0],
+                                                'linestyle': '-g', 'linewidth': 1})
+                else:
+                    self.im[k]['line_data'].append({'x': contour[:, 1], 'y': contour[:, 0],
+                                                    'linestyle': '-r', 'linewidth': 1})
+
+            self.im[k]['imdata'] = self.switch_idx_to_intensity()
+            self.im[k]['title'] = "Click on cells to select or de-select, key-press to quit"
+            self.im[k]['cmap'] = 'gray'
+            self.im[k]['type'] = 'image & line'
+
         else:
             print("Plot type is undefined.")
             return 0
@@ -488,6 +510,19 @@ class s2p(object):
         t.toc()
 
     def switch_idx_to_intensity(self):
+        """
+        switch index in label_mask to max dfof if index belongs to cells_to_plot
+        switch index in label_mask to 0 if index belongs to cells_to_process but not cells_to_plot
+
+        Parameters
+        ----------
+        None.
+
+        Returns
+        -------
+        None.
+
+        """
         def switch_val(x):
             return new_vals[old_vals.index(x)] if x in old_vals else x
 
@@ -559,7 +594,75 @@ class s2p(object):
                     self.im[k]['filename'] = self.im[k]['filename'] + ".tif"
                 plt.savefig(self.save_path_fig + self.im[k]['filename'])
 
+        self.im = [{}]  # clear list after plotting
         plt.show()
+
+# ------------------------------------------------------------------#
+#                           Data Exploration                        #
+# ------------------------------------------------------------------#
+    def cells_to_process_from_fig(self):
+
+        tmp_selection = np.array(self.cells_to_process)
+        tmp_selection_plot = self.cells_to_plot
+
+        self.default_cells_to_process()  # reset selection to default
+
+        self.create_metadata()
+        self.cells_to_plot = self.cells_to_process
+        self.im_plot('cell_selection', plot=True, tmp_selection=tmp_selection)
+        self.plot_fig()
+
+        while True:
+            try:
+                pts = np.rint(np.array(plt.ginput(1, timeout=-1)))  # timeout = -1 for no timeout
+                x = pts[0, 0].astype('int')
+                y = pts[0, 1].astype('int')
+                ROInum = self.label_mask[y, x] - 1  # -1 to convert label to ROInum
+
+                if ROInum in tmp_selection:
+                    tmp_selection = np.delete(tmp_selection, np.where(tmp_selection == ROInum))
+                    contour = self.metadata.loc[ROInum]['contour']
+                    plt.plot(contour[:, 1], contour[:, 0], '-r', linewidth=1)
+
+                else:
+                    tmp_selection = np.sort(np.append(tmp_selection, ROInum))
+                    contour = self.metadata.loc[ROInum]['contour']
+                    plt.plot(contour[:, 1], contour[:, 0], '-g', linewidth=1)
+            except:
+                plt.close()
+                break
+
+        self.cells_to_process = tmp_selection.astype('int')
+        self.cells_to_plot = tmp_selection_plot
+        self.create_metadata()
+
+    def cells_to_plot_from_fig(self):
+        tmp_selection = np.array(self.cells_to_plot)
+        self.cells_to_plot = self.cells_to_process
+        self.im_plot('cell_selection', plot=True, tmp_selection=tmp_selection)
+        self.plot_fig()
+
+        while True:
+            try:
+                pts = np.rint(np.array(plt.ginput(1, timeout=-1)))  # timeout = -1 for no timeout
+                x = pts[0, 0].astype('int')
+                y = pts[0, 1].astype('int')
+                ROInum = self.label_mask[y, x] - 1  # -1 to convert label to ROInum
+
+                if ROInum in tmp_selection:
+                    tmp_selection = np.delete(tmp_selection, np.where(tmp_selection == ROInum))
+                    contour = self.metadata.loc[ROInum]['contour']
+                    plt.plot(contour[:, 1], contour[:, 0], '-r', linewidth=1)
+
+                else:
+                    tmp_selection = np.sort(np.append(tmp_selection, ROInum))
+                    contour = self.metadata.loc[ROInum]['contour']
+                    plt.plot(contour[:, 1], contour[:, 0], '-g', linewidth=1)
+            except:
+                plt.close()
+                break
+
+        self.cells_to_plot = tmp_selection
 
 
 # ------------------------------------------------------------------#
