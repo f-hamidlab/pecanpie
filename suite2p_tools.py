@@ -279,7 +279,7 @@ class s2p(object):
         else:
             print("object.stat and/or object.iscell does not exist. Cannot create dataframe from suite2p stat.")
 
-    def create_metadata(self):  # TODO: function to modify metadata when selection is changed
+    def create_metadata(self):
         """
         Calculate metadata of selected cells, columns include 'ROInum', 'iscell', 'ypix', 'xpix', 'contour', 'area',
         'centroid', 'major_axis', 'minor_axis', 'orientation', 'aspect_ratio', 'circularity', 'perimeter', 'compact',
