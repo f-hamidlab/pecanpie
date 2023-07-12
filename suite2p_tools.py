@@ -594,6 +594,7 @@ class s2p(object):
                     self.im[k]['filename'] = self.im[k]['filename'] + ".tif"
                 plt.savefig(self.save_path_fig + self.im[k]['filename'])
 
+        self.im = [{}]  # clear list after plotting
         plt.show()
 
 # ------------------------------------------------------------------#
@@ -631,7 +632,7 @@ class s2p(object):
                 plt.close()
                 break
 
-        self.cells_to_process = tmp_selection
+        self.cells_to_process = tmp_selection.astype('int')
         self.cells_to_plot = tmp_selection_plot
         self.create_metadata()
 
