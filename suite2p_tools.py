@@ -72,7 +72,7 @@ class s2p(object):
 
         self.iscell = self.read_npy('iscell.npy')
         # if none of the above exist, gives an error.
-        if(all(x is None for x in [self.F, self.Fneu, self.spks, self.stat, self.ops, self.iscell])):
+        if (all(x is None for x in [self.F, self.Fneu, self.spks, self.stat, self.ops, self.iscell])):
             raise Exception("No .npy file is found. Please check the data directory.")
         t.toc()  # print elapsed time
 
@@ -130,6 +130,10 @@ class s2p(object):
         self.metadata = pd.DataFrame()  # initialize metadata of cells_to_process
         self.label_mask = []
 
+        # color scheme
+        self.color = {'red': 'salmon', 'green': 'seagreen'}
+        self.linewidth = 2
+
         # TODO: add other fields if needed
         print('Done object initialization')
         t.toc()  # print elapsed time
@@ -163,7 +167,8 @@ class s2p(object):
             arr1 = set(range(len(self.stat)))
             arr2 = set(cells_to_process)
             if not arr1.union(arr2) == arr1:  # not a subset
-                print("object.cells_to_process is not a subset of the recognised ROIs. Resetting to the default selection.")
+                print(
+                    "object.cells_to_process is not a subset of the recognised ROIs. Resetting to the default selection.")
                 self.default_cells_to_process()
             else:
                 self.cells_to_process = cells_to_process
@@ -177,7 +182,8 @@ class s2p(object):
             arr1 = set(self.cells_to_process)
             arr2 = set(cells_to_plot)
             if not arr1.union(arr2) == arr1:  # not a subset
-                print("object.cells_to_plot is not a subset of object.cells_to_process. Resetting to the default selection.")
+                print(
+                    "object.cells_to_plot is not a subset of object.cells_to_process. Resetting to the default selection.")
                 self.default_cells_to_plot()
             else:
                 self.cells_to_plot = cells_to_plot
@@ -321,12 +327,15 @@ class s2p(object):
             # should be set according to the maximum 'hole' observed in the dataset.
             im = binary_opening(im, disk(2))  # size of disk set to 2 pixels, which is the width of axon in the
             # example dataset
-            label_mask = label_mask + im * (n + 1)
+            label_mask = label_mask + im * (m + 1)
 
         # get properties of the region and store in metadata
         regions = regionprops(label_mask.astype('int'))
+
         for props in regions:
-            n = props.label-1
+            idx = self.metadata.index[self.metadata['ROInum'] == props.label - 1]  # the index to the ROI in metadata
+            n = idx.values[0]
+
             self.metadata['centroid'][n] = props.centroid
             self.metadata['orientation'][n] = props.orientation
             self.metadata['major_axis'][n] = props.axis_major_length
@@ -334,8 +343,10 @@ class s2p(object):
             self.metadata['perimeter'][n] = props.perimeter
             self.metadata['solidity'][n] = props.solidity
             self.metadata['area'][n] = props.num_pixels  # number of pixels
-            self.metadata['iscell'][n] = self.iscell[self.cells_to_process[n]]  # whether the ROI is identified as a cell in suite2p
-            self.metadata['contour'][n] = np.squeeze(np.array(measure.find_contours(label_mask == n+1)))  # contour of ROIs
+            self.metadata['iscell'][n] = self.iscell[
+                self.cells_to_process[n]]  # whether the ROI is identified as a cell in suite2p
+            self.metadata['contour'][n] = np.squeeze(
+                np.array(measure.find_contours(label_mask == self.metadata['ROInum'][n] + 1)))  # contour of ROIs
 
         # Trimming metadata to remove zero entries
         # area of cell has to be more than 1 pixel for calculation of major and minor axis
@@ -343,7 +354,8 @@ class s2p(object):
 
         def switch_val(x):
             return new_vals[old_vals.index(x)] if x in old_vals else x
-        old_vals = list(self.metadata[self.metadata['area'] <= area_threshold]['ROInum']+1)
+
+        old_vals = list(self.metadata[self.metadata['area'] <= area_threshold]['ROInum'] + 1)
         new_vals = list(np.zeros(len(old_vals)))
         vc = np.vectorize(switch_val)
         self.label_mask = vc(label_mask)
@@ -351,9 +363,8 @@ class s2p(object):
         self.metadata = self.metadata.loc[self.metadata['area'] > area_threshold]
         self.cells_to_process = np.array(self.metadata['ROInum']).astype('int')
 
-
         # calculations for other items in metadata
-        self.metadata['aspect_ratio'] = self.metadata['major_axis']/self.metadata['minor_axis']
+        self.metadata['aspect_ratio'] = self.metadata['major_axis'] / self.metadata['minor_axis']
         # TODO: fix circularity and compact
         # self.metadata['circularity'] = 4*np.pi * np.dot(self.metadata['area']/(self.metadata['perimeter'] ^ 2))
 
@@ -364,7 +375,6 @@ class s2p(object):
         self.check_cells_to_plot(cells_to_plot)
         self.create_metadata()
 
-
     # ------------------------------------------------------------------#
     #                           data analysis                           #
     # ------------------------------------------------------------------#
@@ -372,7 +382,8 @@ class s2p(object):
     # ------------------------------------------------------------------#
     #                          data visualisation                       #
     # ------------------------------------------------------------------#
-    def im_plot(self, plottype, plot=True, filename=None, tmp_selection=None):  # TODO: add other parameters for more flexible plot
+    def im_plot(self, plottype, plot=True, filename=None,
+                tmp_selection=None):  # TODO: add other parameters for more flexible plot
         """
         Sets parameters for plotting according to plot type.
 
@@ -399,7 +410,7 @@ class s2p(object):
         # check the current number of plots
         if not self.im[0]:  # the first dictionary is empty
             k = 0
-        else: # the first dictionary is NOT empty. Append to the list of dictionaries
+        else:  # the first dictionary is NOT empty. Append to the list of dictionaries
             k = len(self.im)
             self.im.append({})
 
@@ -430,7 +441,7 @@ class s2p(object):
                 # get the contour of ROI
                 contour = self.metadata.loc[idx]['contour'].values[0]
                 self.im[k]['line_data'].append({'x': contour[:, 1], 'y': contour[:, 0],
-                                                'linestyle': '-g', 'linewidth': 1})
+                                                'color': self.color['green'], 'linewidth': self.linewidth})
 
             self.im[k]['imdata'] = self.switch_idx_to_intensity()
             self.im[k]['title'] = "Contours of selected cells"
@@ -460,8 +471,10 @@ class s2p(object):
                 x2 = x0 - math.sin(orientation) * 0.5 * major_axis
                 y2 = y0 - math.cos(orientation) * 0.5 * major_axis
 
-                self.im[k]['line_data'].append({'x': (x0, x1), 'y': (y0, y1), 'linestyle': '-r', 'linewidth': 1})
-                self.im[k]['line_data'].append({'x': (x0, x2), 'y': (y0, y2), 'linestyle': '-r', 'linewidth': 1})
+                self.im[k]['line_data'].append(
+                    {'x': (x0, x1), 'y': (y0, y1), 'color': self.color['red'], 'linewidth': self.linewidth})
+                self.im[k]['line_data'].append(
+                    {'x': (x0, x2), 'y': (y0, y2), 'color': self.color['red'], 'linewidth': self.linewidth})
             self.im[k]['imdata'] = self.switch_idx_to_intensity()
             self.im[k]['title'] = "Axis of fitted ellipse"
             self.im[k]['cmap'] = 'gray'
@@ -477,10 +490,10 @@ class s2p(object):
 
                 if n in tmp_selection:
                     self.im[k]['line_data'].append({'x': contour[:, 1], 'y': contour[:, 0],
-                                                'linestyle': '-g', 'linewidth': 1})
+                                                    'color': self.color['green'], 'linewidth': self.linewidth, 'visible': True})
                 else:
                     self.im[k]['line_data'].append({'x': contour[:, 1], 'y': contour[:, 0],
-                                                    'linestyle': '-r', 'linewidth': 1})
+                                                    'color': self.color['green'], 'linewidth': self.linewidth, 'visible': False})
 
             self.im[k]['imdata'] = self.switch_idx_to_intensity()
             self.im[k]['title'] = "Click on cells to select or de-select, key-press to quit"
@@ -523,6 +536,7 @@ class s2p(object):
         None.
 
         """
+
         def switch_val(x):
             return new_vals[old_vals.index(x)] if x in old_vals else x
 
@@ -530,12 +544,13 @@ class s2p(object):
         max_dfof = np.max(self.dfof, axis=1)  # axis = 1 for the time dimension
 
         # substitute cells in process but not in plot with 0
-        cells_not_to_plot = np.array(list(filter(lambda x: x not in self.cells_to_plot, self.cells_to_process))).astype('int')
+        cells_not_to_plot = np.array(list(filter(lambda x: x not in self.cells_to_plot, self.cells_to_process))).astype(
+            'int')
         max_dfof[cells_not_to_plot] = 0
 
         # substitute cells to process with intensity
         max_dfof = max_dfof[self.cells_to_process]
-        old_vals = list(self.cells_to_process+1)
+        old_vals = list(self.cells_to_process + 1)
         new_vals = list(max_dfof)
         vc = np.vectorize(switch_val)
 
@@ -574,32 +589,37 @@ class s2p(object):
                         x = self.im[k]['line_data'][n]['x']
                         y = self.im[k]['line_data'][n]['y']
 
-                        if 'linestyle' in self.im[k]['line_data'][n]:
-                            linestyle = self.im[k]['line_data'][n]['linestyle']
+                        if 'color' in self.im[k]['line_data'][n]:
+                            color = self.im[k]['line_data'][n]['color']
                         else:
-                            linestyle = None
+                            color = None
 
                         if 'linewidth' in self.im[k]['line_data'][n]:
                             linewidth = self.im[k]['line_data'][n]['linewidth']
                         else:
                             linewidth = None
 
-                        if linestyle is None:
+                        if color is None:
                             plt.plot(x, y, linewidth=linewidth)
                         else:
-                            plt.plot(x, y, linestyle, linewidth=linewidth)
+                            plt.plot(x, y, color=color, linewidth=linewidth)
+
+                        if 'visible' in self.im[k]['line_data'][n]:
+                            visible = self.im[k]['line_data'][n]['visible']
+                            ax = plt.gca()
+                            plt.setp(ax.lines[n], visible=visible)
 
             if self.im[k]['filename'] is not None:  # save as a tif file if 'filename' has been assigned
                 if not self.im[k]['filename'].endswith(".tif"):
                     self.im[k]['filename'] = self.im[k]['filename'] + ".tif"
                 plt.savefig(self.save_path_fig + self.im[k]['filename'])
 
-        self.im = [{}]  # clear list after plotting
         plt.show()
+        self.im = [{}]  # clear list after plotting
 
-# ------------------------------------------------------------------#
-#                           Data Exploration                        #
-# ------------------------------------------------------------------#
+    # ------------------------------------------------------------------#
+    #                           Data Exploration                        #
+    # ------------------------------------------------------------------#
     def cells_to_process_from_fig(self):
 
         tmp_selection = np.array(self.cells_to_process)
@@ -612,28 +632,10 @@ class s2p(object):
         self.im_plot('cell_selection', plot=True, tmp_selection=tmp_selection)
         self.plot_fig()
 
-        while True:
-            try:
-                pts = np.rint(np.array(plt.ginput(1, timeout=-1)))  # timeout = -1 for no timeout
-                x = pts[0, 0].astype('int')
-                y = pts[0, 1].astype('int')
-                ROInum = self.label_mask[y, x] - 1  # -1 to convert label to ROInum
-
-                if ROInum in tmp_selection:
-                    tmp_selection = np.delete(tmp_selection, np.where(tmp_selection == ROInum))
-                    contour = self.metadata.loc[ROInum]['contour']
-                    plt.plot(contour[:, 1], contour[:, 0], '-r', linewidth=1)
-
-                else:
-                    tmp_selection = np.sort(np.append(tmp_selection, ROInum))
-                    contour = self.metadata.loc[ROInum]['contour']
-                    plt.plot(contour[:, 1], contour[:, 0], '-g', linewidth=1)
-            except:
-                plt.close()
-                break
+        tmp_selection = self.get_selection(tmp_selection)
 
         self.cells_to_process = tmp_selection.astype('int')
-        self.cells_to_plot = tmp_selection_plot
+        self.cells_to_plot = tmp_selection_plot  # TODO: remove idx not in new cells_to_plot
         self.create_metadata()
 
     def cells_to_plot_from_fig(self):
@@ -642,6 +644,12 @@ class s2p(object):
         self.im_plot('cell_selection', plot=True, tmp_selection=tmp_selection)
         self.plot_fig()
 
+        tmp_selection = self.get_selection(tmp_selection)
+
+        self.cells_to_plot = tmp_selection
+
+    def get_selection(self, tmp_selection):
+        ax = plt.gca()
         while True:
             try:
                 pts = np.rint(np.array(plt.ginput(1, timeout=-1)))  # timeout = -1 for no timeout
@@ -649,21 +657,21 @@ class s2p(object):
                 y = pts[0, 1].astype('int')
                 ROInum = self.label_mask[y, x] - 1  # -1 to convert label to ROInum
 
-                if ROInum in tmp_selection:
+                if ROInum in tmp_selection:  # remove from selection
+                    n = int(np.where(self.cells_to_plot == ROInum)[0])
                     tmp_selection = np.delete(tmp_selection, np.where(tmp_selection == ROInum))
-                    contour = self.metadata.loc[ROInum]['contour']
-                    plt.plot(contour[:, 1], contour[:, 0], '-r', linewidth=1)
+                    plt.setp(ax.lines[n], visible=False)
 
-                else:
+                else:  # add to selection
+                    n = int(np.where(self.cells_to_plot == ROInum)[0])
                     tmp_selection = np.sort(np.append(tmp_selection, ROInum))
-                    contour = self.metadata.loc[ROInum]['contour']
-                    plt.plot(contour[:, 1], contour[:, 0], '-g', linewidth=1)
+                    plt.setp(ax.lines[n], visible=True)
+
             except:
                 plt.close()
                 break
 
-        self.cells_to_plot = tmp_selection
-
+        return tmp_selection
 
 # ------------------------------------------------------------------#
 #                               Timer                               #

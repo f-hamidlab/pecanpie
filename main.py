@@ -22,15 +22,18 @@ savepath = 'testdata/outputs/'
 # ------------------------------------------------------------------#
 # Selecting cells to be processed. If set to None, process all ROIs
 # cells_to_process = np.linspace(0, 49, endpoint=False, dtype='int')
+cells_to_process = [0, 1, 2, 3, 4, 5]
 # Selecting cells to be plotted
-# cells_to_plot = [7, 8]
+# cells_to_plot = [2, 3]
 
 # ------------------------------------------------------------------#
 #                          creating object                          #
 # ------------------------------------------------------------------#
 # load .npy bindata from read_path
-s2p = st.s2p(filepath, savepath)  # for test dataset
+# s2p = st.s2p(filepath, savepath)  # for test dataset
 # s2p = st.s2p(filepath, savepath, cells_to_process, cells_to_plot)  # for test dataset
+s2p = st.s2p(filepath, savepath, cells_to_process)  # for test dataset
+# s2p = st.s2p(filepath, savepath, cells_to_plot)  # for test dataset
 s2p.create_metadata()
 
 # ------------------------------------------------------------------#
@@ -51,32 +54,33 @@ s2p.create_metadata()
 # ------------------------------------------------------------------#
 #                           plotting figures                        #
 # ------------------------------------------------------------------#
-# initialize plot average fluorescence
-s2p.im_plot('avg_bin', plot=True, filename='average_binary.tif')
-
-# initialize plot for selected cells at peak intensity
-s2p.im_plot('selected_cells', plot=True, filename='selected_cells.tif')
-
-# initialize plot for selected cells with contours
-s2p.im_plot('contour', plot=True, filename='contours.tif')
-
-# initialize plot for selected cells with contours and major and minor axes
-s2p.im_plot('axis', plot=True, filename='axes.tif')
-
-# plot and save figures
-s2p.plot_fig()
+# # initialize plot average fluorescence
+# s2p.im_plot('avg_bin', plot=True, filename='average_binary.tif')
+#
+# # initialize plot for selected cells at peak intensity
+# s2p.im_plot('selected_cells', plot=True, filename='selected_cells.tif')
+#
+# # initialize plot for selected cells with contours
+# s2p.im_plot('contour', plot=True, filename='contours.tif')
+#
+# # initialize plot for selected cells with contours and major and minor axes
+# s2p.im_plot('axis', plot=True, filename='axes.tif')
+#
+# # plot and save figures
+# s2p.plot_fig()
 
 # ------------------------------------------------------------------#
 #            change selection of ROI from figure (optional)         #
 # ------------------------------------------------------------------#
+
 s2p.cells_to_process_from_fig()
 # s2p.cells_to_plot_from_fig()
 
-# initialize plot for selected cells at peak intensity
-s2p.im_plot('selected_cells', plot=True, filename='selected_cells.tif')
-
-# plot and save figures
-s2p.plot_fig()
+# # initialize plot for selected cells at peak intensity
+# s2p.im_plot('selected_cells', plot=True, filename='selected_cells.tif')
+#
+# # plot and save figures
+# s2p.plot_fig()
 
 
 
