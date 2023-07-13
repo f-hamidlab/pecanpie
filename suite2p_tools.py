@@ -621,7 +621,6 @@ class s2p(object):
     #                           Data Exploration                        #
     # ------------------------------------------------------------------#
     def cells_to_process_from_fig(self):
-
         tmp_selection = np.array(self.cells_to_process)
         tmp_selection_plot = self.cells_to_plot
 
@@ -635,7 +634,7 @@ class s2p(object):
         tmp_selection = self.get_selection(tmp_selection)
 
         self.cells_to_process = tmp_selection.astype('int')
-        self.cells_to_plot = tmp_selection_plot  # TODO: remove idx not in new cells_to_plot
+        self.cells_to_plot = list(set(self.cells_to_process).intersection(tmp_selection_plot))
         self.create_metadata()
 
     def cells_to_plot_from_fig(self):
