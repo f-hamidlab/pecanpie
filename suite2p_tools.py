@@ -99,7 +99,8 @@ class s2p(object):
         if save_path is not None:
             self.save_path = save_path
         else:
-            self.save_path = read_path
+            k = os.path.split(os.path.split(read_path)[0])
+            self.save_path = k[0] + "/outputs/"
 
         # make directory to contain figures and data outputs
         self.save_path_fig = self.save_path + "figures/"
