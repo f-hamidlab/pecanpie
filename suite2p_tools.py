@@ -40,11 +40,12 @@ class s2p(object):
         save_path : str
             Path to folder for saving output files. (Default) same as read_path
 
-        cells_to_process : list
-            Indices to selected cells for data analysis. (Default) list of all ROIs identified in suite2p
+        cells_to_process : array
+            Indices to selected cells for data analysis. (Default) All ROIs identified in suite2p
 
-        cells_to_plot : list
-            Indices to selected cells for plotting. (Default) list of ROIs identified as cells in suite2p
+        cells_to_plot : array
+            Indices to selected cells for plotting. (Default) All ROIs within cells_to_process that are identified as
+            cells in suite2p
 
 
         Returns
@@ -131,9 +132,12 @@ class s2p(object):
         self.metadata = pd.DataFrame()  # initialize metadata of cells_to_process
         self.label_mask = []
 
-        # color scheme
+        # color scheme / plot properties
         self.color = {'red': 'salmon', 'green': 'seagreen'}
         self.linewidth = 2
+
+        # temporary data slot for passing internal variables
+        self.tmp = []
 
         # TODO: add other fields if needed
         print('Done object initialization')
@@ -162,6 +166,19 @@ class s2p(object):
         return data
 
     def check_cells_to_process(self, cells_to_process):
+        """
+        Check that the newly defined cells_to_process is within the scope of stat.npy
+
+        Parameters
+        ----------
+        cells_to_process : array
+            Indices to selected cells for data analysis. (Default) All ROIs identified in suite2p
+
+        Returns
+        -------
+        None.
+
+        """
         # if cells_to_process is defined in input, use the defined value
         if cells_to_process is not None:
             # check if cells to be processed is within the limits of stat
@@ -172,11 +189,25 @@ class s2p(object):
                     "object.cells_to_process is not a subset of the recognised ROIs. Resetting to the default selection.")
                 self.default_cells_to_process()
             else:
-                self.cells_to_process = cells_to_process
+                self.cells_to_process = np.array(cells_to_process)
         else:
             self.default_cells_to_process()
 
     def check_cells_to_plot(self, cells_to_plot):
+        """
+        Check that the newly defined cells_to_plot is within the scope of cells_to_process
+
+        Parameters
+        ----------
+        cells_to_plot : array
+            Indices to selected cells for plotting. (Default) All ROIs within cells_to_process that are identified as
+            cells in suite2p
+
+        Returns
+        -------
+        None.
+
+        """
         # if cells_to_plot is defined in input, use the defined value
         if cells_to_plot is not None:
             # check if cells to be plotted is a subset of cells to be processed
@@ -192,21 +223,45 @@ class s2p(object):
             self.default_cells_to_plot()
 
     def default_cells_to_process(self):
+        """
+        Defining the default cells_to_process.
+
+        Parameters
+        ----------
+        None.
+
+        Returns
+        -------
+        None.
+
+        """
         if self.stat is not None:  # by default selected cells for processing are all ROIs
-            self.cells_to_process = list(range(len(self.stat)))
+            self.cells_to_process = np.array(range(len(self.stat)))
         else:
             self.cells_to_process = None
             print("object.stat is not present. Please define object.cells_to_process for further processing and "
                   "plotting.")
 
     def default_cells_to_plot(self):
+        """
+        Defining the default cells_to_plot.
+
+        Parameters
+        ----------
+        None.
+
+        Returns
+        -------
+        None.
+
+        """
         if self.iscell is not None:  # by default selected cells for plotting are all real cells within cells_to_process
             k = np.nonzero(self.iscell[:, 0])
             k = np.array(k)
             k = k.reshape(-1)
             arr1 = set(self.cells_to_process)
             arr2 = set(k)
-            self.cells_to_plot = list(arr1.intersection(arr2))
+            self.cells_to_plot = np.array(arr1.intersection(arr2))
         else:
             self.cells_to_plot = None
             print("object.iscell is not present. Please define object.cells_to_plot for further processing and "
@@ -372,6 +427,23 @@ class s2p(object):
         t.toc()  # print elapsed time
 
     def change_cell_selection(self, cells_to_process=None, cells_to_plot=None):
+        """
+        Changing selections according to the array input.
+
+        Parameters
+        ----------
+        cells_to_process : array
+            Indices to selected cells for data analysis. (Default) All ROIs identified in suite2p
+
+        cells_to_plot : array
+            Indices to selected cells for plotting. (Default) All ROIs within cells_to_process that are identified as
+            cells in suite2p
+
+        Returns
+        -------
+        None.
+
+        """
         self.check_cells_to_process(cells_to_process)
         self.check_cells_to_plot(cells_to_plot)
         self.create_metadata()
@@ -383,8 +455,8 @@ class s2p(object):
     # ------------------------------------------------------------------#
     #                          data visualisation                       #
     # ------------------------------------------------------------------#
-    def im_plot(self, plottype, plot=True, filename=None,
-                tmp_selection=None):  # TODO: add other parameters for more flexible plot
+    def im_plot(self, plottype, plot=True, filename=None):
+        # TODO: add other parameters for more flexible plot
         """
         Sets parameters for plotting according to plot type.
 
@@ -395,8 +467,12 @@ class s2p(object):
             'selected_cells' = plots the selected cells in peak delta F over F intensity
             'contour' = plots the selected cells with their contours after morphological operations
             'axis' = plots the selected cells with their contours and axes after morphological operations
+            'cell_selection' = (FOR INTERNAL USE) for internactive selection of cells. Plots all cells with green
+                               contour. Contours of cells not in self.tmp would be invisible.
+
         plot : bool
             Whether to show plot or not. (Default) True
+
         filename : str
             Filename of figure to save. If filename is not set, the figure will NOT be saved. (Default) None
 
@@ -484,12 +560,13 @@ class s2p(object):
         # plotting all ROIs from stat for cell selection
         elif plottype == 'cell_selection':
             self.im[k]['line_data'] = []
+
             for n in self.cells_to_plot:
                 idx = self.metadata.index[self.metadata['ROInum'] == n]  # the index to the ROI in metadata
                 # get the contour of ROI
                 contour = self.metadata.loc[idx]['contour'].values[0]
 
-                if n in tmp_selection:
+                if n in self.tmp:
                     self.im[k]['line_data'].append({'x': contour[:, 1], 'y': contour[:, 0],
                                                     'color': self.color['green'], 'linewidth': self.linewidth, 'visible': True})
                 else:
@@ -525,8 +602,8 @@ class s2p(object):
 
     def switch_idx_to_intensity(self):
         """
-        switch index in label_mask to max dfof if index belongs to cells_to_plot
-        switch index in label_mask to 0 if index belongs to cells_to_process but not cells_to_plot
+        Switch index in label_mask to max dfof if index belongs to cells_to_plot
+        Switch index in label_mask to 0 if index belongs to cells_to_process but not cells_to_plot
 
         Parameters
         ----------
@@ -622,34 +699,72 @@ class s2p(object):
     #                           Data Exploration                        #
     # ------------------------------------------------------------------#
     def cells_to_process_from_fig(self):
-        tmp_selection = np.array(self.cells_to_process)
+        """
+        Open an interactive graphical interface for selecting and deselecting cells in cells_to_process
+
+        Parameters
+        ----------
+        None.
+
+        Returns
+        -------
+        None.
+
+        """
+        self.tmp = np.array(self.cells_to_process)
         tmp_selection_plot = self.cells_to_plot
 
         self.default_cells_to_process()  # reset selection to default
 
         self.create_metadata()
         self.cells_to_plot = self.cells_to_process
-        self.im_plot('cell_selection', plot=True, tmp_selection=tmp_selection)
+        self.im_plot('cell_selection', plot=True)
         self.plot_fig()
 
-        tmp_selection = self.get_selection(tmp_selection)
+        tmp_selection = self.get_selection()
 
         self.cells_to_process = tmp_selection.astype('int')
         self.cells_to_plot = list(set(self.cells_to_process).intersection(tmp_selection_plot))
         self.create_metadata()
 
+        self.tmp = []
+
     def cells_to_plot_from_fig(self):
-        tmp_selection = np.array(self.cells_to_plot)
+        """
+        Open an interactive graphical interface for selecting and deselecting cells in cells_to_plot
+
+        Parameters
+        ----------
+        None.
+
+        Returns
+        -------
+        None.
+
+        """
+        self.tmp = np.array(self.cells_to_plot)
         self.cells_to_plot = self.cells_to_process
-        self.im_plot('cell_selection', plot=True, tmp_selection=tmp_selection)
+        self.im_plot('cell_selection', plot=True)
         self.plot_fig()
+        self.cells_to_plot = self.get_selection()
+        self.tmp = []
 
-        tmp_selection = self.get_selection(tmp_selection)
+    def get_selection(self):
+        """
+        Get point from graph and update the temporary selection
 
-        self.cells_to_plot = tmp_selection
+        Parameters
+        ----------
+        None.
 
-    def get_selection(self, tmp_selection):
+        Returns
+        -------
+        tmp_selection : array
+            temporary selection of cells
+
+        """
         ax = plt.gca()
+        tmp_selection = self.tmp
         while True:
             try:
                 pts = np.rint(np.array(plt.ginput(1, timeout=-1)))  # timeout = -1 for no timeout
@@ -657,7 +772,7 @@ class s2p(object):
                 y = pts[0, 1].astype('int')
                 ROInum = self.label_mask[y, x] - 1  # -1 to convert label to ROInum
 
-                if ROInum in tmp_selection:  # remove from selection
+                if ROInum in self.tmp:  # remove from selection
                     n = int(np.where(self.cells_to_plot == ROInum)[0])
                     tmp_selection = np.delete(tmp_selection, np.where(tmp_selection == ROInum))
                     plt.setp(ax.lines[n], visible=False)
