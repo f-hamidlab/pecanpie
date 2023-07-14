@@ -261,7 +261,7 @@ class s2p(object):
             k = k.reshape(-1)
             arr1 = set(self.cells_to_process)
             arr2 = set(k)
-            self.cells_to_plot = np.array(arr1.intersection(arr2))
+            self.cells_to_plot = np.array(list(arr1.intersection(arr2)))
         else:
             self.cells_to_plot = None
             print("object.iscell is not present. Please define object.cells_to_plot for further processing and "
@@ -383,12 +383,13 @@ class s2p(object):
             # should be set according to the maximum 'hole' observed in the dataset.
             im = binary_opening(im, disk(2))  # size of disk set to 2 pixels, which is the width of axon in the
             # example dataset
-            label_mask = label_mask + im * (m + 1)
+            label_mask = label_mask + im * (m + 1)  # +1 such that the first element is not labeled as 0
 
         # get properties of the region and store in metadata
         regions = regionprops(label_mask.astype('int'))
 
         for props in regions:
+            print(props.label)
             idx = self.metadata.index[self.metadata['ROInum'] == props.label - 1]  # the index to the ROI in metadata
             n = idx.values[0]
 
@@ -772,7 +773,7 @@ class s2p(object):
                 y = pts[0, 1].astype('int')
                 ROInum = self.label_mask[y, x] - 1  # -1 to convert label to ROInum
 
-                if ROInum in self.tmp:  # remove from selection
+                if ROInum in tmp_selection:  # remove from selection
                     n = int(np.where(self.cells_to_plot == ROInum)[0])
                     tmp_selection = np.delete(tmp_selection, np.where(tmp_selection == ROInum))
                     plt.setp(ax.lines[n], visible=False)
