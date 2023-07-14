@@ -1,14 +1,14 @@
 # This script crops .npy and .bin files
 # Author                   : Jane Ling
 # Date of creation         : 29/06/2023
-# Date of last modification: 29/06/2023
+# Date of last modification: 14/07/2023
 
 # ------------------------------------------------------------------#
 #                         load packages                             #
 # ------------------------------------------------------------------#
 import math
 import numpy as np
-import suite2p_tools as st
+import pecan_pie as pp
 
 # ------------------------------------------------------------------#
 #                     set paths and size of output                  #
@@ -42,7 +42,7 @@ def modify_stat(stat):
 #                            load data                              #
 # ------------------------------------------------------------------#
 # load .npy bindata from read_path
-s2p = st.s2p(filepath)
+s2p = pp.PecanPie(filepath)
 
 # ------------------------------------------------------------------#
 #                           modify bin                              #

@@ -12,7 +12,7 @@ from shutil import rmtree
 from setuptools import find_packages, setup, Command
 
 # Package meta-bindata.
-NAME = 'suite2ptools'
+NAME = 'PecanPie'
 DESCRIPTION = 'Toolbox for post-processing of suite2p outputs'
 URL = 'https://github.com/fursham-h/suite2ptools'
 EMAIL = 'fursham.hamid@kcl.ac.uk'
@@ -22,7 +22,7 @@ VERSION = '0.0.1'
 
 # What packages are required for this module to be executed?
 REQUIRED = [
-    'numpy', 'matplotlib', 'pandas'
+    'numpy', 'matplotlib', 'pandas', 'skimage'
 ]
 # Other required packages which are already installed
 # 'os', 'time'

@@ -1,8 +1,7 @@
 # This class object loads, processes, visualises data output from suite2p
 # Author                   : Jane Ling
 # Date of creation         : 22/06/2023
-# Date of last modification: 11/07/2023
-
+# Date of last modification: 14/07/2023
 
 # ------------------------------------------------------------------#
 #                         load packages                             #
@@ -13,7 +12,7 @@ import matplotlib as mpl
 import matplotlib.pyplot as plt
 import os
 import pandas as pd
-import pickle
+# import pickle
 
 from skimage import measure
 from skimage.measure import regionprops
@@ -26,11 +25,10 @@ mpl.use('TkAgg')  # need this line, otherwise a pycharm console error would occu
 # ------------------------------------------------------------------#
 #                   class definition, load data                     #
 # ------------------------------------------------------------------#
-class s2p(object):
-
+class PecanPie(object):
     def __init__(self, read_path, save_path=None, cells_to_process=None, cells_to_plot=None):
         """
-        Start suite2p. Load .npy and .bin data. Define other parameters.
+        Start PecanPie. Load .npy and .bin data. Define other parameters.
 
         Parameters
         ----------
@@ -73,7 +71,7 @@ class s2p(object):
 
         self.iscell = self.read_npy('iscell.npy')
         # if none of the above exist, gives an error.
-        if (all(x is None for x in [self.F, self.Fneu, self.spks, self.stat, self.ops, self.iscell])):
+        if all(x is None for x in [self.F, self.Fneu, self.spks, self.stat, self.ops, self.iscell]):
             raise Exception("No .npy file is found. Please check the data directory.")
         t.toc()  # print elapsed time
 
@@ -186,7 +184,8 @@ class s2p(object):
             arr2 = set(cells_to_process)
             if not arr1.union(arr2) == arr1:  # not a subset
                 print(
-                    "object.cells_to_process is not a subset of the recognised ROIs. Resetting to the default selection.")
+                    "object.cells_to_process is not a subset of the recognised ROIs. Resetting to the default "
+                    "selection.")
                 self.default_cells_to_process()
             else:
                 self.cells_to_process = np.array(cells_to_process)
@@ -215,7 +214,8 @@ class s2p(object):
             arr2 = set(cells_to_plot)
             if not arr1.union(arr2) == arr1:  # not a subset
                 print(
-                    "object.cells_to_plot is not a subset of object.cells_to_process. Resetting to the default selection.")
+                    "object.cells_to_plot is not a subset of object.cells_to_process. Resetting to the default "
+                    "selection.")
                 self.default_cells_to_plot()
             else:
                 self.cells_to_plot = cells_to_plot
@@ -321,9 +321,9 @@ class s2p(object):
         print('Creating dataframe from suite2p stat...')
 
         if (self.stat is not None) and (self.iscell is not None):
-            def get_data_from_stat(ncells, item, col_name):
-                data = np.zeros(ncells)
-                for n in range(0, ncells):
+            def get_data_from_stat(num_cells, item, col_name):
+                data = np.zeros(num_cells)
+                for n in range(0, num_cells):
                     data[n] = self.stat[n][item]
                 self.ori_metadata[col_name] = data
 
@@ -389,7 +389,6 @@ class s2p(object):
         regions = regionprops(label_mask.astype('int'))
 
         for props in regions:
-            print(props.label)
             idx = self.metadata.index[self.metadata['ROInum'] == props.label - 1]  # the index to the ROI in metadata
             n = idx.values[0]
 
@@ -569,13 +568,15 @@ class s2p(object):
 
                 if n in self.tmp:
                     self.im[k]['line_data'].append({'x': contour[:, 1], 'y': contour[:, 0],
-                                                    'color': self.color['green'], 'linewidth': self.linewidth, 'visible': True})
+                                                    'color': self.color['green'], 'linewidth': self.linewidth,
+                                                    'visible': True})
                 else:
                     self.im[k]['line_data'].append({'x': contour[:, 1], 'y': contour[:, 0],
-                                                    'color': self.color['green'], 'linewidth': self.linewidth, 'visible': False})
+                                                    'color': self.color['green'], 'linewidth': self.linewidth,
+                                                    'visible': False})
 
             self.im[k]['imdata'] = self.switch_idx_to_intensity()
-            self.im[k]['title'] = "Click on cells to select or de-select, key-press to quit"
+            self.im[k]['title'] = "Click on cells to select or de-select, press ENTER to quit"
             self.im[k]['cmap'] = 'gray'
             self.im[k]['type'] = 'image & line'
 
@@ -722,10 +723,8 @@ class s2p(object):
         self.im_plot('cell_selection', plot=True)
         self.plot_fig()
 
-        tmp_selection = self.get_selection()
-
-        self.cells_to_process = tmp_selection.astype('int')
-        self.cells_to_plot = list(set(self.cells_to_process).intersection(tmp_selection_plot))
+        self.cells_to_process = self.get_selection()
+        self.cells_to_plot = np.array(list(set(self.cells_to_process).intersection(tmp_selection_plot)))
         self.create_metadata()
 
         self.tmp = []
@@ -769,8 +768,8 @@ class s2p(object):
         while True:
             try:
                 pts = np.rint(np.array(plt.ginput(1, timeout=-1)))  # timeout = -1 for no timeout
-                x = pts[0, 0].astype('int')
-                y = pts[0, 1].astype('int')
+                x = int(pts[0, 0])
+                y = int(pts[0, 1])
                 ROInum = self.label_mask[y, x] - 1  # -1 to convert label to ROInum
 
                 if ROInum in tmp_selection:  # remove from selection
@@ -783,11 +782,12 @@ class s2p(object):
                     tmp_selection = np.sort(np.append(tmp_selection, ROInum))
                     plt.setp(ax.lines[n], visible=True)
 
-            except:
+            except IndexError:  # If no pts is read from ginput, IndexError would occur at "x = pts[0, 0].astype('int')"
                 plt.close()
                 break
 
         return tmp_selection
+
 
 # ------------------------------------------------------------------#
 #                               Timer                               #
