@@ -28,7 +28,7 @@ mpl.use('TkAgg')  # need this line, otherwise a pycharm console error would occu
 #                   class definition, load data                     #
 # ------------------------------------------------------------------#
 class PecanPie(object):
-    def __init__(self, read_path, save_path=None, cells_to_process=None, cells_to_plot=None):
+    def __init__(self, read_path, save_path=None, cells_to_process=None, cells_to_plot=None, verbal=False):
         """
         Start PecanPie. Load .npy and .bin data. Define other parameters.
 
@@ -53,12 +53,14 @@ class PecanPie(object):
         None.
 
         """
+        self._verbal = verbal
         self.read_path = read_path
         print(_bcolors.HEADER, "Path: " + self.read_path, _bcolors.ENDC)
-        print("Reading .npy files...")
+        if self._verbal:
+            print("Reading .npy files...", end="")
 
         # start timer
-        t = _Timer()
+        t = _Timer(self._verbal)
 
         # load .npy files if they exists
         self.F = self.read_npy('F.npy')
@@ -81,21 +83,27 @@ class PecanPie(object):
         if os.path.isfile(self.read_path + 'data.bin'):
             # opens the registered binary
             f = open(self.read_path + 'data.bin', 'rb')
-            print("Reading .bin file...")
+            if self._verbal:
+                print("Reading .bin file...", end="")
             self.bindata = np.fromfile(f, dtype=np.int16)
             f.close()
             t.toc()  # print elapsed time
 
             # reshaping bindata in the format of time, y, x
-            print("Reshaping binary data...")
+            if self._verbal:
+                print("Reshaping binary data...", end="")
             self.bindata = np.reshape(self.bindata, (self.ops['nframes'], self.ops['Ly'], self.ops['Lx']))
             t.toc()  # print elapsed time
 
         else:
             self.bindata = None
-            print("data.bin does not exist. Registered images are not loaded.")
+            print(_bcolors.WARNING, "data.bin does not exist. Registered images are not loaded.", _bcolors.ENDC)
 
-        print("Defining other parameters...")
+        # calculate delta F over F
+        self.dfof = self.cal_dfof()
+
+        if self._verbal:
+            print("Defining other parameters...", end="")
         # add save_path if it doesn't exist
         if save_path is not None:
             self.save_path = save_path
@@ -114,9 +122,6 @@ class PecanPie(object):
         if not os.path.isdir(self.save_path_data):
             os.makedirs(self.save_path_data)
 
-        # calculate delta F over F
-        self.dfof = self.cal_dfof()
-
         # list of dictionaries to store image data for plot/saving
         self.im = [{}]
 
@@ -126,12 +131,6 @@ class PecanPie(object):
         self.check_cells_to_process(cells_to_process)
         self.check_cells_to_plot(cells_to_plot)
 
-        # DataFrame for storing metadata
-        self.ori_metadata = pd.DataFrame()  # original metadata calculated by suite2p for all ROIs
-        self.create_ori_metadata()  # initialize values from stat
-        self.metadata = pd.DataFrame()  # initialize metadata of cells_to_process
-        self.label_mask = []
-
         # _color scheme / plot properties
         self._color = {'red': 'salmon', 'green': 'seagreen'}
         self._linewidth = 2
@@ -140,12 +139,19 @@ class PecanPie(object):
         self._tmp = []
 
         # TODO: add other fields if needed
+        t.toc()  # print elapsed time
+
+        # DataFrame for storing metadata
+        self.ori_metadata = pd.DataFrame()  # original metadata calculated by suite2p for all ROIs
+        self.create_ori_metadata()  # initialize values from stat
+        self.metadata = pd.DataFrame()  # initialize metadata of cells_to_process
+        self.label_mask = []
 
         # Display some data about the object
-        print('Done object initialization')
-        self.print_ori_metadata()
+        if self._verbal:
+            print(_bcolors.OKGREEN, 'Done object initialization.', _bcolors.ENDC)
 
-        t.toc()  # print elapsed time
+        self.print_ori_metadata()
 
     def read_npy(self, filename):
         """
@@ -166,7 +172,8 @@ class PecanPie(object):
             data = np.load(self.read_path + filename, allow_pickle=True)
         else:
             data = None
-            print("Warning: " + filename + " does not exist. Certain functions of this toolbox may be affected.")
+            print(_bcolors.WARNING, "Warning: " + filename + "does not exist. Certain functions of this toolbox may "
+                                                             "be affected.", _bcolors.ENDC)
         return data
 
     def check_cells_to_process(self, cells_to_process):
@@ -189,9 +196,9 @@ class PecanPie(object):
             arr1 = set(range(len(self.stat)))
             arr2 = set(cells_to_process)
             if not arr1.union(arr2) == arr1:  # not a subset
-                print(
-                    "object.cells_to_process is not a subset of the recognised ROIs. Resetting to the default "
-                    "selection.")
+                print(_bcolors.WARNING,
+                      "object.cells_to_process is not a subset of the recognised ROIs. Resetting to the default "
+                      "selection.", _bcolors.ENDC)
                 self.default_cells_to_process()
             else:
                 self.cells_to_process = np.array(cells_to_process)
@@ -219,9 +226,9 @@ class PecanPie(object):
             arr1 = set(self.cells_to_process)
             arr2 = set(cells_to_plot)
             if not arr1.union(arr2) == arr1:  # not a subset
-                print(
-                    "object.cells_to_plot is not a subset of object.cells_to_process. Resetting to the default "
-                    "selection.")
+                print(_bcolors.WARNING,
+                      "object.cells_to_plot is not a subset of object.cells_to_process. Resetting to the default "
+                      "selection.", _bcolors.ENDC)
                 self.default_cells_to_plot()
             else:
                 self.cells_to_plot = cells_to_plot
@@ -245,8 +252,8 @@ class PecanPie(object):
             self.cells_to_process = np.array(range(len(self.stat)))
         else:
             self.cells_to_process = None
-            print("object.stat is not present. Please define object.cells_to_process for further processing and "
-                  "plotting.")
+            print(_bcolors.WARNING, "object.stat is not present. Please define object.cells_to_process for further "
+                                    "processing and plotting.", _bcolors.ENDC)
 
     def default_cells_to_plot(self):
         """
@@ -270,8 +277,8 @@ class PecanPie(object):
             self.cells_to_plot = np.array(list(arr1.intersection(arr2)))
         else:
             self.cells_to_plot = None
-            print("object.iscell is not present. Please define object.cells_to_plot for further processing and "
-                  "plotting.")
+            print(_bcolors.WARNING, "object.iscell is not present. Please define object.cells_to_plot for further "
+                                    "processing and plotting.", _bcolors.ENDC)
 
     # ------------------------------------------------------------------#
     #                            pre-processing                         #
@@ -291,16 +298,17 @@ class PecanPie(object):
 
         """
         # start timer
-        t = _Timer()
+        t = _Timer(self._verbal)
 
         # calculate delta F over F
         if (self.F is not None) & (self.Fneu is not None):
-            print("Calculating delta F over F...")
+            if self._verbal:
+                print("Calculating delta F over F...", end="")
             data = (self.F - self.Fneu) / self.Fneu
             t.toc()  # print elapsed time
         else:
             data = None
-            print("F and/or Fneu does not exist. Cannot calculate delta F over F.")
+            print(_bcolors.WARNING, "F and/or Fneu does not exist. Cannot calculate delta F over F.", _bcolors.ENDC)
 
         return data
 
@@ -322,9 +330,9 @@ class PecanPie(object):
 
         """
         # start timer
-        t = _Timer()
-
-        print('Creating dataframe from suite2p stat...')
+        t = _Timer(self._verbal)
+        if self._verbal:
+            print('Creating dataframe from suite2p stat...', end="")
 
         if (self.stat is not None) and (self.iscell is not None):
             def get_data_from_stat(num_cells, item, col_name):
@@ -345,7 +353,8 @@ class PecanPie(object):
             t.toc()  # print elapsed time
 
         else:
-            print("object.stat and/or object.iscell does not exist. Cannot create dataframe from suite2p stat.")
+            print(_bcolors.WARNING, "object.stat and/or object.iscell does not exist. Cannot create dataframe from "
+                                    "suite2p stat.", _bcolors.ENDC)
 
     def print_ori_metadata(self):
 
@@ -408,9 +417,9 @@ class PecanPie(object):
 
         """
         # start timer
-        t = _Timer()
-
-        print('Calculating metadata...')
+        t = _Timer(self._verbal)
+        if self._verbal:
+            print('Calculating metadata...', end="")
         # define columns for storing parameters to be calculated in later sessions
         d = {'ROInum': self.cells_to_process, 'ypix': None, 'xpix': None, 'contour': None, 'area': None,
              'perimeter': None, 'centroid': None, 'orientation': None, 'major_axis': None, 'minor_axis': None,
@@ -451,7 +460,7 @@ class PecanPie(object):
             self.metadata['solidity'][n] = props.solidity
             self.metadata['area'][n] = props.num_pixels  # number of pixels
             self.metadata['iscell'][n] = self.iscell[
-                self.cells_to_process[n]]  # whether the ROI is identified as a cell in suite2p
+                self.cells_to_process[n]][0]  # whether the ROI is identified as a cell in suite2p
             self.metadata['contour'][n] = np.squeeze(
                 np.array(measure.find_contours(label_mask == self.metadata['ROInum'][n] + 1)))  # contour of ROIs
 
@@ -471,9 +480,12 @@ class PecanPie(object):
         self.cells_to_process = np.array(self.metadata['ROInum']).astype('int')
 
         # calculations for other items in metadata
+        # ref: https://imagej.nih.gov/ij/docs/guide/146-30.html
         self.metadata['aspect_ratio'] = self.metadata['major_axis'] / self.metadata['minor_axis']
-        # TODO: fix circularity and compact
-        # self.metadata['circularity'] = 4*np.pi * np.dot(self.metadata['area']/(self.metadata['perimeter'] ^ 2))
+        self.metadata['circularity'] = 4 * np.pi * np.divide(self.metadata['area'],
+                                                             np.power(self.metadata['perimeter'], 2))
+        self.metadata['compact'] = 4 / np.pi * np.divide(self.metadata['area'],
+                                                         np.power(self.metadata['major_axis'], 2))
 
         t.toc()  # print elapsed time
         self.print_metadata()
@@ -491,37 +503,47 @@ class PecanPie(object):
         table.add_column("Area\n(sq. px)", justify="center")
         table.add_column("Major Axis (px)", justify="center")
         table.add_column("Aspect Ratio", justify="center")
-        table.add_column("Orientation", justify="center")
+        # table.add_column("Orientation (rad)", justify="center")
+        # table.add_column("Circularity", justify="center")
+        table.add_column("Compact", justify="center")
         table.add_column("Solidity", justify="center")
 
-        # area = np.multiply(self.metadata.iscell[:], self.metadata.area.values[:])
-        # major_axis = np.multiply(self.metadata.iscell[:], self.metadata.major_axis.values[:])
-        # aspect_ratio = np.multiply(self.metadata.iscell[:], self.metadata.aspect_ratio.values[:])
-        # orientation = np.multiply(self.metadata.iscell[:], self.metadata.compact.values[:])
-        # solidity = np.multiply(self.metadata.iscell[:], self.metadata.solidity.values[:])
-        #
-        # table.add_row("Cell",
-        #               f"{np.mean(area):0.1f} " + u"\u00B1" + f" {np.std(area):0.1f}",
-        #               f"{np.mean(major_axis):0.1f} " + u"\u00B1" + f" {np.std(major_axis):0.1f}",
-        #               f"{np.mean(aspect_ratio):0.1f} " + u"\u00B1" + f" {np.std(aspect_ratio):0.1f}",
-        #               f"{np.mean(orientation):0.1f} " + u"\u00B1" + f" {np.std(orientation):0.1f}",
-        #               f"{np.mean(solidity):0.1f} " + u"\u00B1" + f" {np.std(solidity):0.1f}")
-        #
-        # area = np.multiply(-(self.metadata.iscell[:] - 1), self.metadata.area.values[:])
-        # major_axis = np.multiply(-(self.metadata.iscell[:] - 1), self.metadata.radius.values[:])
-        # aspect_ratio = np.multiply(-(self.metadata.iscell[:] - 1), self.metadata.aspect_ratio.values[:])
-        # orientation = np.multiply(-(self.metadata.iscell[:] - 1), self.metadata.compact.values[:])
-        # solidity = np.multiply(-(self.metadata.iscell[:] - 1), self.metadata.solidity.values[:])
-        #
-        # table.add_row("Not Cell",
-        #               f"{np.mean(area):0.1f} " + u"\u00B1" + f" {np.std(area):0.1f}",
-        #               f"{np.mean(major_axis):0.1f} " + u"\u00B1" + f" {np.std(major_axis):0.1f}",
-        #               f"{np.mean(aspect_ratio):0.1f} " + u"\u00B1" + f" {np.std(aspect_ratio):0.1f}",
-        #               f"{np.mean(orientation):0.1f} " + u"\u00B1" + f" {np.std(orientation):0.1f}",
-        #               f"{np.mean(solidity):0.1f} " + u"\u00B1" + f" {np.std(solidity):0.1f}")
-        #
-        # console = Console()
-        # console.print(table)
+        area = np.multiply(self.metadata.iscell[:], self.metadata.area.values[:])
+        major_axis = np.multiply(self.metadata.iscell[:], self.metadata.major_axis.values[:])
+        aspect_ratio = np.multiply(self.metadata.iscell[:], self.metadata.aspect_ratio.values[:])
+        # orientation = np.multiply(self.metadata.iscell[:], self.metadata.orientation.values[:])
+        # circularity = np.multiply(self.metadata.iscell[:], self.metadata.circularity.values[:])
+        compact = np.multiply(self.metadata.iscell[:], self.metadata.compact.values[:])
+        solidity = np.multiply(self.metadata.iscell[:], self.metadata.solidity.values[:])
+
+        table.add_row("Cell",
+                      f"{np.mean(area):0.1f} " + u"\u00B1" + f" {np.std(area):0.1f}",
+                      f"{np.mean(major_axis):0.1f} " + u"\u00B1" + f" {np.std(major_axis):0.1f}",
+                      f"{np.mean(aspect_ratio):0.1f} " + u"\u00B1" + f" {np.std(aspect_ratio):0.1f}",
+                      # f"{np.mean(orientation):0.1f} " + u"\u00B1" + f" {np.std(orientation):0.1f}",
+                      # f"{np.mean(circularity):0.1f} " + u"\u00B1" + f" {np.std(circularity):0.1f}",
+                      f"{np.mean(compact):0.1f} " + u"\u00B1" + f" {np.std(compact):0.1f}",
+                      f"{np.mean(solidity):0.1f} " + u"\u00B1" + f" {np.std(solidity):0.1f}")
+
+        area = np.multiply(-(self.metadata.iscell[:] - 1), self.metadata.area.values[:])
+        major_axis = np.multiply(-(self.metadata.iscell[:] - 1), self.metadata.major_axis.values[:])
+        aspect_ratio = np.multiply(-(self.metadata.iscell[:] - 1), self.metadata.aspect_ratio.values[:])
+        # orientation = np.multiply(-(self.metadata.iscell[:] - 1), self.metadata.orientation.values[:])
+        # circularity = np.multiply(-(self.metadata.iscell[:] - 1), self.metadata.circularity.values[:])
+        compact = np.multiply(-(self.metadata.iscell[:] - 1), self.metadata.compact.values[:])
+        solidity = np.multiply(-(self.metadata.iscell[:] - 1), self.metadata.solidity.values[:])
+
+        table.add_row("Not Cell",
+                      f"{np.mean(area):0.1f} " + u"\u00B1" + f" {np.std(area):0.1f}",
+                      f"{np.mean(major_axis):0.1f} " + u"\u00B1" + f" {np.std(major_axis):0.1f}",
+                      f"{np.mean(aspect_ratio):0.1f} " + u"\u00B1" + f" {np.std(aspect_ratio):0.1f}",
+                      # f"{np.mean(orientation):0.1f} " + u"\u00B1" + f" {np.std(orientation):0.1f}",
+                      # f"{np.mean(circularity):0.1f} " + u"\u00B1" + f" {np.std(circularity):0.1f}",
+                      f"{np.mean(compact):0.1f} " + u"\u00B1" + f" {np.std(compact):0.1f}",
+                      f"{np.mean(solidity):0.1f} " + u"\u00B1" + f" {np.std(solidity):0.1f}")
+
+        console = Console()
+        console.print(table)
 
     def change_cell_selection(self, cells_to_process=None, cells_to_plot=None):
         """
@@ -552,7 +574,7 @@ class PecanPie(object):
     # ------------------------------------------------------------------#
     #                          data visualisation                       #
     # ------------------------------------------------------------------#
-    def im_plot(self, plottype, plot=True, filename=None):
+    def create_fig(self, plottype, plot=True, filename=None):
         # TODO: add other parameters for more flexible plot
         """
         Sets parameters for plotting according to plot type.
@@ -578,8 +600,9 @@ class PecanPie(object):
         None.
 
         """
-        print("Initializing plot for " + plottype + "...")
-        t = _Timer()
+        if self._verbal:
+            print("Creating plot for " + plottype + "...", end="")
+        t = _Timer(self._verbal)
 
         # check the current number of plots
         if not self.im[0]:  # the first dictionary is empty
@@ -792,7 +815,7 @@ class PecanPie(object):
                 plt.savefig(self.save_path_fig + self.im[k]['filename'])
 
         plt.show()
-        # self.im = [{}]  # clear list after plotting
+        self.im = [{}]  # clear list after plotting
 
     # ------------------------------------------------------------------#
     #                           Data Exploration                        #
@@ -817,7 +840,7 @@ class PecanPie(object):
 
         self.create_metadata()
         self.cells_to_plot = self.cells_to_process
-        self.im_plot('cell_selection', plot=True)
+        self.create_fig('cell_selection', plot=True)
         self.plot_fig()
 
         self.cells_to_process = self.get_selection()
@@ -841,7 +864,7 @@ class PecanPie(object):
         """
         self._tmp = np.array(self.cells_to_plot)
         self.cells_to_plot = self.cells_to_process
-        self.im_plot('cell_selection', plot=True)
+        self.create_fig('cell_selection', plot=True)
         self.plot_fig()
         self.cells_to_plot = self.get_selection()
         self._tmp = []
@@ -910,7 +933,8 @@ class _Timer:
 
     """
 
-    def __init__(self):
+    def __init__(self, verbal=False):
+        self._verbal = verbal
         self._start_time = time.perf_counter()
 
     def tic(self):
@@ -920,8 +944,10 @@ class _Timer:
     def toc(self):
         # Stop the timer, and report the elapsed time
         elapsed_time = time.perf_counter() - self._start_time
-        print(f"Done. Elapsed time: {elapsed_time:0.4f} seconds")
+        if self._verbal:
+            print(f"Elapsed time: {elapsed_time:0.4f} seconds")
         self._start_time = time.perf_counter()
+
 
 # ------------------------------------------------------------------#
 #                     color of console print                        #
