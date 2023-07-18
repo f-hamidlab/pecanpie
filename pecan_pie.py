@@ -6,6 +6,7 @@
 # ------------------------------------------------------------------#
 #                         load packages                             #
 # ------------------------------------------------------------------#
+
 import numpy as np
 import math
 import matplotlib as mpl
@@ -13,7 +14,8 @@ import matplotlib.pyplot as plt
 import os
 import pandas as pd
 # import pickle
-
+from rich.console import Console
+from rich.table import Table
 from skimage import measure
 from skimage.measure import regionprops
 from skimage.morphology import disk, binary_closing, binary_opening
@@ -52,11 +54,11 @@ class PecanPie(object):
 
         """
         self.read_path = read_path
-        print("Path: " + self.read_path)
+        print(_bcolors.HEADER, "Path: " + self.read_path, _bcolors.ENDC)
         print("Reading .npy files...")
 
         # start timer
-        t = Timer()
+        t = _Timer()
 
         # load .npy files if they exists
         self.F = self.read_npy('F.npy')
@@ -130,15 +132,19 @@ class PecanPie(object):
         self.metadata = pd.DataFrame()  # initialize metadata of cells_to_process
         self.label_mask = []
 
-        # color scheme / plot properties
-        self.color = {'red': 'salmon', 'green': 'seagreen'}
-        self.linewidth = 2
+        # _color scheme / plot properties
+        self._color = {'red': 'salmon', 'green': 'seagreen'}
+        self._linewidth = 2
 
         # temporary data slot for passing internal variables
-        self.tmp = []
+        self._tmp = []
 
         # TODO: add other fields if needed
+
+        # Display some data about the object
         print('Done object initialization')
+        self.print_ori_metadata()
+
         t.toc()  # print elapsed time
 
     def read_npy(self, filename):
@@ -285,7 +291,7 @@ class PecanPie(object):
 
         """
         # start timer
-        t = Timer()
+        t = _Timer()
 
         # calculate delta F over F
         if (self.F is not None) & (self.Fneu is not None):
@@ -316,7 +322,7 @@ class PecanPie(object):
 
         """
         # start timer
-        t = Timer()
+        t = _Timer()
 
         print('Creating dataframe from suite2p stat...')
 
@@ -341,6 +347,51 @@ class PecanPie(object):
         else:
             print("object.stat and/or object.iscell does not exist. Cannot create dataframe from suite2p stat.")
 
+    def print_ori_metadata(self):
+
+        print(_bcolors.OKGREEN, 'Total number of ROIs = ', len(self.stat), _bcolors.ENDC)
+        print(_bcolors.OKGREEN, 'Total number of ROIs classified as cells = ', int(np.sum(self.iscell, axis=0)[0]),
+              _bcolors.ENDC)
+
+        # create table for displaying metadata
+        table = Table(title="Metadata from Suite2p (Mean" + u"\u00B1" + "SD)")
+
+        table.add_column("Type", justify="right")
+        table.add_column("Area\n(sq. px)", justify="center")
+        table.add_column("Radius (px)", justify="center")
+        table.add_column("Aspect Ratio", justify="center")
+        table.add_column("Compact", justify="center")
+        table.add_column("Solidity", justify="center")
+
+        area = np.multiply(self.iscell[:, 0], self.ori_metadata.area.values[:])
+        radius = np.multiply(self.iscell[:, 0], self.ori_metadata.radius.values[:])
+        aspect_ratio = np.multiply(self.iscell[:, 0], self.ori_metadata.aspect_ratio.values[:])
+        compact = np.multiply(self.iscell[:, 0], self.ori_metadata.compact.values[:])
+        solidity = np.multiply(self.iscell[:, 0], self.ori_metadata.solidity.values[:])
+
+        table.add_row("Cell",
+                      f"{np.mean(area):0.1f} " + u"\u00B1" + f" {np.std(area):0.1f}",
+                      f"{np.mean(radius):0.1f} " + u"\u00B1" + f" {np.std(radius):0.1f}",
+                      f"{np.mean(aspect_ratio):0.1f} " + u"\u00B1" + f" {np.std(aspect_ratio):0.1f}",
+                      f"{np.mean(compact):0.1f} " + u"\u00B1" + f" {np.std(compact):0.1f}",
+                      f"{np.mean(solidity):0.1f} " + u"\u00B1" + f" {np.std(solidity):0.1f}")
+
+        area = np.multiply(-(self.iscell[:, 0] - 1), self.ori_metadata.area.values[:])
+        radius = np.multiply(-(self.iscell[:, 0] - 1), self.ori_metadata.radius.values[:])
+        aspect_ratio = np.multiply(-(self.iscell[:, 0] - 1), self.ori_metadata.aspect_ratio.values[:])
+        compact = np.multiply(-(self.iscell[:, 0] - 1), self.ori_metadata.compact.values[:])
+        solidity = np.multiply(-(self.iscell[:, 0] - 1), self.ori_metadata.solidity.values[:])
+
+        table.add_row("Not Cell",
+                      f"{np.mean(area):0.1f} " + u"\u00B1" + f" {np.std(area):0.1f}",
+                      f"{np.mean(radius):0.1f} " + u"\u00B1" + f" {np.std(radius):0.1f}",
+                      f"{np.mean(aspect_ratio):0.1f} " + u"\u00B1" + f" {np.std(aspect_ratio):0.1f}",
+                      f"{np.mean(compact):0.1f} " + u"\u00B1" + f" {np.std(compact):0.1f}",
+                      f"{np.mean(solidity):0.1f} " + u"\u00B1" + f" {np.std(solidity):0.1f}")
+
+        console = Console()
+        console.print(table)
+
     def create_metadata(self):
         """
         Calculate metadata of selected cells, columns include 'ROInum', 'iscell', 'ypix', 'xpix', 'contour', 'area',
@@ -357,7 +408,7 @@ class PecanPie(object):
 
         """
         # start timer
-        t = Timer()
+        t = _Timer()
 
         print('Calculating metadata...')
         # define columns for storing parameters to be calculated in later sessions
@@ -425,6 +476,52 @@ class PecanPie(object):
         # self.metadata['circularity'] = 4*np.pi * np.dot(self.metadata['area']/(self.metadata['perimeter'] ^ 2))
 
         t.toc()  # print elapsed time
+        self.print_metadata()
+
+    def print_metadata(self):
+
+        print(_bcolors.OKGREEN, 'Total number of ROIs = ', len(self.stat), _bcolors.ENDC)
+        print(_bcolors.OKGREEN, 'Total number of ROIs selected for processing = ', len(self.cells_to_process),
+              _bcolors.ENDC)
+
+        # create table for displaying metadata
+        table = Table(title="Metadata of PecanPie (Mean" + u"\u00B1" + "SD)")
+
+        table.add_column("Type", justify="right")
+        table.add_column("Area\n(sq. px)", justify="center")
+        table.add_column("Major Axis (px)", justify="center")
+        table.add_column("Aspect Ratio", justify="center")
+        table.add_column("Orientation", justify="center")
+        table.add_column("Solidity", justify="center")
+
+        # area = np.multiply(self.metadata.iscell[:], self.metadata.area.values[:])
+        # major_axis = np.multiply(self.metadata.iscell[:], self.metadata.major_axis.values[:])
+        # aspect_ratio = np.multiply(self.metadata.iscell[:], self.metadata.aspect_ratio.values[:])
+        # orientation = np.multiply(self.metadata.iscell[:], self.metadata.compact.values[:])
+        # solidity = np.multiply(self.metadata.iscell[:], self.metadata.solidity.values[:])
+        #
+        # table.add_row("Cell",
+        #               f"{np.mean(area):0.1f} " + u"\u00B1" + f" {np.std(area):0.1f}",
+        #               f"{np.mean(major_axis):0.1f} " + u"\u00B1" + f" {np.std(major_axis):0.1f}",
+        #               f"{np.mean(aspect_ratio):0.1f} " + u"\u00B1" + f" {np.std(aspect_ratio):0.1f}",
+        #               f"{np.mean(orientation):0.1f} " + u"\u00B1" + f" {np.std(orientation):0.1f}",
+        #               f"{np.mean(solidity):0.1f} " + u"\u00B1" + f" {np.std(solidity):0.1f}")
+        #
+        # area = np.multiply(-(self.metadata.iscell[:] - 1), self.metadata.area.values[:])
+        # major_axis = np.multiply(-(self.metadata.iscell[:] - 1), self.metadata.radius.values[:])
+        # aspect_ratio = np.multiply(-(self.metadata.iscell[:] - 1), self.metadata.aspect_ratio.values[:])
+        # orientation = np.multiply(-(self.metadata.iscell[:] - 1), self.metadata.compact.values[:])
+        # solidity = np.multiply(-(self.metadata.iscell[:] - 1), self.metadata.solidity.values[:])
+        #
+        # table.add_row("Not Cell",
+        #               f"{np.mean(area):0.1f} " + u"\u00B1" + f" {np.std(area):0.1f}",
+        #               f"{np.mean(major_axis):0.1f} " + u"\u00B1" + f" {np.std(major_axis):0.1f}",
+        #               f"{np.mean(aspect_ratio):0.1f} " + u"\u00B1" + f" {np.std(aspect_ratio):0.1f}",
+        #               f"{np.mean(orientation):0.1f} " + u"\u00B1" + f" {np.std(orientation):0.1f}",
+        #               f"{np.mean(solidity):0.1f} " + u"\u00B1" + f" {np.std(solidity):0.1f}")
+        #
+        # console = Console()
+        # console.print(table)
 
     def change_cell_selection(self, cells_to_process=None, cells_to_plot=None):
         """
@@ -468,7 +565,7 @@ class PecanPie(object):
             'contour' = plots the selected cells with their contours after morphological operations
             'axis' = plots the selected cells with their contours and axes after morphological operations
             'cell_selection' = (FOR INTERNAL USE) for internactive selection of cells. Plots all cells with green
-                               contour. Contours of cells not in self.tmp would be invisible.
+                               contour. Contours of cells not in self._tmp would be invisible.
 
         plot : bool
             Whether to show plot or not. (Default) True
@@ -482,7 +579,7 @@ class PecanPie(object):
 
         """
         print("Initializing plot for " + plottype + "...")
-        t = Timer()
+        t = _Timer()
 
         # check the current number of plots
         if not self.im[0]:  # the first dictionary is empty
@@ -518,7 +615,7 @@ class PecanPie(object):
                 # get the contour of ROI
                 contour = self.metadata.loc[idx]['contour'].values[0]
                 self.im[k]['line_data'].append({'x': contour[:, 1], 'y': contour[:, 0],
-                                                'color': self.color['green'], 'linewidth': self.linewidth})
+                                                'color': self._color['green'], 'linewidth': self._linewidth})
 
             self.im[k]['imdata'] = self.switch_idx_to_intensity()
             self.im[k]['title'] = "Contours of selected cells"
@@ -549,9 +646,9 @@ class PecanPie(object):
                 y2 = y0 - math.cos(orientation) * 0.5 * major_axis
 
                 self.im[k]['line_data'].append(
-                    {'x': (x0, x1), 'y': (y0, y1), 'color': self.color['red'], 'linewidth': self.linewidth})
+                    {'x': (x0, x1), 'y': (y0, y1), 'color': self._color['red'], 'linewidth': self._linewidth})
                 self.im[k]['line_data'].append(
-                    {'x': (x0, x2), 'y': (y0, y2), 'color': self.color['red'], 'linewidth': self.linewidth})
+                    {'x': (x0, x2), 'y': (y0, y2), 'color': self._color['red'], 'linewidth': self._linewidth})
             self.im[k]['imdata'] = self.switch_idx_to_intensity()
             self.im[k]['title'] = "Axis of fitted ellipse"
             self.im[k]['cmap'] = 'gray'
@@ -566,13 +663,13 @@ class PecanPie(object):
                 # get the contour of ROI
                 contour = self.metadata.loc[idx]['contour'].values[0]
 
-                if n in self.tmp:
+                if n in self._tmp:
                     self.im[k]['line_data'].append({'x': contour[:, 1], 'y': contour[:, 0],
-                                                    'color': self.color['green'], 'linewidth': self.linewidth,
+                                                    'color': self._color['green'], 'linewidth': self._linewidth,
                                                     'visible': True})
                 else:
                     self.im[k]['line_data'].append({'x': contour[:, 1], 'y': contour[:, 0],
-                                                    'color': self.color['green'], 'linewidth': self.linewidth,
+                                                    'color': self._color['green'], 'linewidth': self._linewidth,
                                                     'visible': False})
 
             self.im[k]['imdata'] = self.switch_idx_to_intensity()
@@ -695,7 +792,7 @@ class PecanPie(object):
                 plt.savefig(self.save_path_fig + self.im[k]['filename'])
 
         plt.show()
-        self.im = [{}]  # clear list after plotting
+        # self.im = [{}]  # clear list after plotting
 
     # ------------------------------------------------------------------#
     #                           Data Exploration                        #
@@ -713,7 +810,7 @@ class PecanPie(object):
         None.
 
         """
-        self.tmp = np.array(self.cells_to_process)
+        self._tmp = np.array(self.cells_to_process)
         tmp_selection_plot = self.cells_to_plot
 
         self.default_cells_to_process()  # reset selection to default
@@ -727,7 +824,7 @@ class PecanPie(object):
         self.cells_to_plot = np.array(list(set(self.cells_to_process).intersection(tmp_selection_plot)))
         self.create_metadata()
 
-        self.tmp = []
+        self._tmp = []
 
     def cells_to_plot_from_fig(self):
         """
@@ -742,12 +839,12 @@ class PecanPie(object):
         None.
 
         """
-        self.tmp = np.array(self.cells_to_plot)
+        self._tmp = np.array(self.cells_to_plot)
         self.cells_to_plot = self.cells_to_process
         self.im_plot('cell_selection', plot=True)
         self.plot_fig()
         self.cells_to_plot = self.get_selection()
-        self.tmp = []
+        self._tmp = []
 
     def get_selection(self):
         """
@@ -764,25 +861,30 @@ class PecanPie(object):
 
         """
         ax = plt.gca()
-        tmp_selection = self.tmp
+        tmp_selection = self._tmp
         while True:
             try:
                 pts = np.rint(np.array(plt.ginput(1, timeout=-1)))  # timeout = -1 for no timeout
                 x = int(pts[0, 0])
                 y = int(pts[0, 1])
-                ROInum = self.label_mask[y, x] - 1  # -1 to convert label to ROInum
+                ROInum = int(self.label_mask[y, x] - 1)  # -1 to convert label to ROInum
 
                 if ROInum in tmp_selection:  # remove from selection
                     n = int(np.where(self.cells_to_plot == ROInum)[0])
                     tmp_selection = np.delete(tmp_selection, np.where(tmp_selection == ROInum))
                     plt.setp(ax.lines[n], visible=False)
 
-                else:  # add to selection
+                elif ROInum in self._tmp:  # add to selection
                     n = int(np.where(self.cells_to_plot == ROInum)[0])
                     tmp_selection = np.sort(np.append(tmp_selection, ROInum))
                     plt.setp(ax.lines[n], visible=True)
 
-            except IndexError:  # If no pts is read from ginput, IndexError would occur at "x = pts[0, 0].astype('int')"
+                else:  # case where ROInum is not recognized, meaning a click on the empty parts of the plot.
+                    continue
+
+            except IndexError or TypeError:
+                # If no pts is read from ginput, IndexError would occur at "x = pts[0, 0].astype('int')"
+                # If click is outside cells, TypeError
                 plt.close()
                 break
 
@@ -794,7 +896,7 @@ class PecanPie(object):
 # ------------------------------------------------------------------#
 
 
-class Timer:
+class _Timer:
     """
     Timer for checking performance
 
@@ -820,3 +922,18 @@ class Timer:
         elapsed_time = time.perf_counter() - self._start_time
         print(f"Done. Elapsed time: {elapsed_time:0.4f} seconds")
         self._start_time = time.perf_counter()
+
+# ------------------------------------------------------------------#
+#                     color of console print                        #
+# ------------------------------------------------------------------#
+
+class _bcolors:
+    HEADER = '\033[95m'
+    OKBLUE = '\033[94m'
+    OKCYAN = '\033[96m'
+    OKGREEN = '\033[92m'
+    WARNING = '\033[93m'
+    FAIL = '\033[91m'
+    ENDC = '\033[0m'
+    BOLD = '\033[1m'
+    UNDERLINE = '\033[4m'

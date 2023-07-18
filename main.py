@@ -22,7 +22,6 @@ read_path = 'testdata/originals/'
 s2p = pp.PecanPie(read_path)  # for test dataset
 s2p.create_metadata()
 
-
 # ------------------------------------------------------------------#
 #            change selection of ROI from figure (optional)         #
 # ------------------------------------------------------------------#
