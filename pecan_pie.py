@@ -480,9 +480,12 @@ class PecanPie(object):
         self.cells_to_process = np.array(self.metadata['ROInum']).astype('int')
 
         # calculations for other items in metadata
+        # ref: https://imagej.nih.gov/ij/docs/guide/146-30.html
         self.metadata['aspect_ratio'] = self.metadata['major_axis'] / self.metadata['minor_axis']
-        # TODO: fix circularity and compact
-        # self.metadata['circularity'] = 4*np.pi * np.dot(self.metadata['area']/(self.metadata['perimeter'] ^ 2))
+        self.metadata['circularity'] = 4 * np.pi * np.divide(self.metadata['area'],
+                                                             np.power(self.metadata['perimeter'], 2))
+        self.metadata['compact'] = 4 / np.pi * np.divide(self.metadata['area'],
+                                                         np.power(self.metadata['major_axis'], 2))
 
         t.toc()  # print elapsed time
         self.print_metadata()
@@ -500,33 +503,43 @@ class PecanPie(object):
         table.add_column("Area\n(sq. px)", justify="center")
         table.add_column("Major Axis (px)", justify="center")
         table.add_column("Aspect Ratio", justify="center")
-        table.add_column("Orientation (rad)", justify="center")
+        # table.add_column("Orientation (rad)", justify="center")
+        # table.add_column("Circularity", justify="center")
+        table.add_column("Compact", justify="center")
         table.add_column("Solidity", justify="center")
 
         area = np.multiply(self.metadata.iscell[:], self.metadata.area.values[:])
         major_axis = np.multiply(self.metadata.iscell[:], self.metadata.major_axis.values[:])
         aspect_ratio = np.multiply(self.metadata.iscell[:], self.metadata.aspect_ratio.values[:])
-        orientation = np.multiply(self.metadata.iscell[:], self.metadata.orientation.values[:])
+        # orientation = np.multiply(self.metadata.iscell[:], self.metadata.orientation.values[:])
+        # circularity = np.multiply(self.metadata.iscell[:], self.metadata.circularity.values[:])
+        compact = np.multiply(self.metadata.iscell[:], self.metadata.compact.values[:])
         solidity = np.multiply(self.metadata.iscell[:], self.metadata.solidity.values[:])
 
         table.add_row("Cell",
                       f"{np.mean(area):0.1f} " + u"\u00B1" + f" {np.std(area):0.1f}",
                       f"{np.mean(major_axis):0.1f} " + u"\u00B1" + f" {np.std(major_axis):0.1f}",
                       f"{np.mean(aspect_ratio):0.1f} " + u"\u00B1" + f" {np.std(aspect_ratio):0.1f}",
-                      f"{np.mean(orientation):0.1f} " + u"\u00B1" + f" {np.std(orientation):0.1f}",
+                      # f"{np.mean(orientation):0.1f} " + u"\u00B1" + f" {np.std(orientation):0.1f}",
+                      # f"{np.mean(circularity):0.1f} " + u"\u00B1" + f" {np.std(circularity):0.1f}",
+                      f"{np.mean(compact):0.1f} " + u"\u00B1" + f" {np.std(compact):0.1f}",
                       f"{np.mean(solidity):0.1f} " + u"\u00B1" + f" {np.std(solidity):0.1f}")
 
         area = np.multiply(-(self.metadata.iscell[:] - 1), self.metadata.area.values[:])
         major_axis = np.multiply(-(self.metadata.iscell[:] - 1), self.metadata.major_axis.values[:])
         aspect_ratio = np.multiply(-(self.metadata.iscell[:] - 1), self.metadata.aspect_ratio.values[:])
-        orientation = np.multiply(-(self.metadata.iscell[:] - 1), self.metadata.orientation.values[:])
+        # orientation = np.multiply(-(self.metadata.iscell[:] - 1), self.metadata.orientation.values[:])
+        # circularity = np.multiply(-(self.metadata.iscell[:] - 1), self.metadata.circularity.values[:])
+        compact = np.multiply(-(self.metadata.iscell[:] - 1), self.metadata.compact.values[:])
         solidity = np.multiply(-(self.metadata.iscell[:] - 1), self.metadata.solidity.values[:])
 
         table.add_row("Not Cell",
                       f"{np.mean(area):0.1f} " + u"\u00B1" + f" {np.std(area):0.1f}",
                       f"{np.mean(major_axis):0.1f} " + u"\u00B1" + f" {np.std(major_axis):0.1f}",
                       f"{np.mean(aspect_ratio):0.1f} " + u"\u00B1" + f" {np.std(aspect_ratio):0.1f}",
-                      f"{np.mean(orientation):0.1f} " + u"\u00B1" + f" {np.std(orientation):0.1f}",
+                      # f"{np.mean(orientation):0.1f} " + u"\u00B1" + f" {np.std(orientation):0.1f}",
+                      # f"{np.mean(circularity):0.1f} " + u"\u00B1" + f" {np.std(circularity):0.1f}",
+                      f"{np.mean(compact):0.1f} " + u"\u00B1" + f" {np.std(compact):0.1f}",
                       f"{np.mean(solidity):0.1f} " + u"\u00B1" + f" {np.std(solidity):0.1f}")
 
         console = Console()
@@ -588,7 +601,7 @@ class PecanPie(object):
 
         """
         if self._verbal:
-            print("Initializing plot for " + plottype + "...", end="")
+            print("Creating plot for " + plottype + "...", end="")
         t = _Timer(self._verbal)
 
         # check the current number of plots
