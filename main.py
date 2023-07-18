@@ -19,7 +19,7 @@ read_path = 'testdata/originals/'
 #                          creating object                          #
 # ------------------------------------------------------------------#
 # load .npy bindata from read_path and initiate pecanpie object
-s2p = pp.PecanPie(read_path, verbose=False)  # for test dataset
+s2p = pp.PecanPie(read_path, verbose=True)  # for test dataset
 s2p.create_metadata()
 
 # ------------------------------------------------------------------#
@@ -28,3 +28,5 @@ s2p.create_metadata()
 
 # s2p.cells_to_process_from_fig()
 # s2p.cells_to_plot_from_fig()
+
+

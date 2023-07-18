@@ -56,11 +56,10 @@ class PecanPie(object):
         self._verbose = verbose
         self.read_path = read_path
         print(_bcolors.HEADER, "Path: " + self.read_path, _bcolors.ENDC)
-        if self._verbose:
-            print("Reading .npy files...", end="")
 
         # start timer
         t = _Timer(self._verbose)
+        t.tic("Reading .npy files...")
 
         # load .npy files if they exists
         self.F = self.read_npy('F.npy')
@@ -83,15 +82,13 @@ class PecanPie(object):
         if os.path.isfile(self.read_path + 'data.bin'):
             # opens the registered binary
             f = open(self.read_path + 'data.bin', 'rb')
-            if self._verbose:
-                print("Reading .bin file...", end="")
+            t.tic("Reading .bin file...")
             self.bindata = np.fromfile(f, dtype=np.int16)
             f.close()
             t.toc()  # print elapsed time
 
             # reshaping bindata in the format of time, y, x
-            if self._verbose:
-                print("Reshaping binary data...", end="")
+            t.tic("Reshaping binary data...")
             self.bindata = np.reshape(self.bindata, (self.ops['nframes'], self.ops['Ly'], self.ops['Lx']))
             t.toc()  # print elapsed time
 
@@ -102,8 +99,8 @@ class PecanPie(object):
         # calculate delta F over F
         self.dfof = self.cal_dfof()
 
-        if self._verbose:
-            print("Defining other parameters...", end="")
+        t.tic("Defining other parameters...")
+
         # add save_path if it doesn't exist
         if save_path is not None:
             self.save_path = save_path
@@ -150,6 +147,39 @@ class PecanPie(object):
         # Display some data about the object
         if self._verbose:
             print(_bcolors.OKGREEN, 'Done object initialization.', _bcolors.ENDC)
+
+    def __repr__(self):
+        print(_bcolors.HEADER, "Path: " + self.read_path, _bcolors.ENDC)
+        self.print_data_status(self.F is not None, 'self.F')
+        self.print_data_status(self.Fneu is not None, 'self.Fneu')
+        self.print_data_status(self.spks is not None, 'self.spks')
+        self.print_data_status(self.stat is not None, 'self.stat')
+        self.print_data_status(self.ops is not None, 'self.ops')
+        self.print_data_status(self.bindata is not None, 'self.bindata')
+
+        print("\n")
+        self.print_data_status(self.ops['Lx'], 'Nx')
+        self.print_data_status(self.ops['Ly'], 'Ny')
+        self.print_data_status(self.F.shape[1], 'Timepoints')
+
+        print("\n")
+        self.print_metadata()
+
+    def print_data_status(self, val, txt):
+        tick = u'\u2713'
+        cross = 'X'
+        console_width = 79
+        txt = txt.split('.')[-1]
+
+        # print(txt, end="")
+        if val == 1:
+            status = tick.rjust(console_width - len(txt), ".")
+        elif val == 0:
+            status = cross.rjust(console_width - len(txt), ".")
+        else:
+            status = str(val).rjust(console_width - len(txt), ".")
+
+        print(f"{txt} {status}")
 
     def read_npy(self, filename):
         """
@@ -300,8 +330,7 @@ class PecanPie(object):
 
         # calculate delta F over F
         if (self.F is not None) & (self.Fneu is not None):
-            if self._verbose:
-                print("Calculating delta F over F...", end="")
+            t.tic("Calculating delta F over F...")
             data = (self.F - self.Fneu) / self.Fneu
             t.toc()  # print elapsed time
         else:
@@ -329,8 +358,7 @@ class PecanPie(object):
         """
         # start timer
         t = _Timer(self._verbose)
-        if self._verbose:
-            print('Creating dataframe from suite2p stat...', end="")
+        t.tic('Creating dataframe from suite2p stat...')
 
         if (self.stat is not None) and (self.iscell is not None):
             def get_data_from_stat(num_cells, item, col_name):
@@ -355,13 +383,13 @@ class PecanPie(object):
                                     "suite2p stat.", _bcolors.ENDC)
 
     def print_ori_metadata(self):
-
+        plus_minus = u"\u00B1"
         print(_bcolors.OKGREEN, 'Total number of ROIs = ', len(self.stat), _bcolors.ENDC)
         print(_bcolors.OKGREEN, 'Total number of ROIs classified as cells = ', int(np.sum(self.iscell, axis=0)[0]),
               _bcolors.ENDC)
 
         # create table for displaying metadata
-        table = Table(title="Metadata from Suite2p (Mean" + u"\u00B1" + "SD)")
+        table = Table(title="Metadata from Suite2p (Mean " + plus_minus + " SD)")
 
         table.add_column("Type", justify="right")
         table.add_column("Area\n(sq. px)", justify="center")
@@ -377,11 +405,11 @@ class PecanPie(object):
         solidity = np.multiply(self.iscell[:, 0], self.ori_metadata.solidity.values[:])
 
         table.add_row("Cell",
-                      f"{np.mean(area):0.1f} " + u"\u00B1" + f" {np.std(area):0.1f}",
-                      f"{np.mean(radius):0.1f} " + u"\u00B1" + f" {np.std(radius):0.1f}",
-                      f"{np.mean(aspect_ratio):0.1f} " + u"\u00B1" + f" {np.std(aspect_ratio):0.1f}",
-                      f"{np.mean(compact):0.1f} " + u"\u00B1" + f" {np.std(compact):0.1f}",
-                      f"{np.mean(solidity):0.1f} " + u"\u00B1" + f" {np.std(solidity):0.1f}")
+                      f"{np.mean(area):0.1f} " + plus_minus + f" {np.std(area):0.1f}",
+                      f"{np.mean(radius):0.1f} " + plus_minus + f" {np.std(radius):0.1f}",
+                      f"{np.mean(aspect_ratio):0.1f} " + plus_minus + f" {np.std(aspect_ratio):0.1f}",
+                      f"{np.mean(compact):0.1f} " + plus_minus + f" {np.std(compact):0.1f}",
+                      f"{np.mean(solidity):0.1f} " + plus_minus + f" {np.std(solidity):0.1f}")
 
         area = np.multiply(-(self.iscell[:, 0] - 1), self.ori_metadata.area.values[:])
         radius = np.multiply(-(self.iscell[:, 0] - 1), self.ori_metadata.radius.values[:])
@@ -390,11 +418,11 @@ class PecanPie(object):
         solidity = np.multiply(-(self.iscell[:, 0] - 1), self.ori_metadata.solidity.values[:])
 
         table.add_row("Not Cell",
-                      f"{np.mean(area):0.1f} " + u"\u00B1" + f" {np.std(area):0.1f}",
-                      f"{np.mean(radius):0.1f} " + u"\u00B1" + f" {np.std(radius):0.1f}",
-                      f"{np.mean(aspect_ratio):0.1f} " + u"\u00B1" + f" {np.std(aspect_ratio):0.1f}",
-                      f"{np.mean(compact):0.1f} " + u"\u00B1" + f" {np.std(compact):0.1f}",
-                      f"{np.mean(solidity):0.1f} " + u"\u00B1" + f" {np.std(solidity):0.1f}")
+                      f"{np.mean(area):0.1f} " + plus_minus + f" {np.std(area):0.1f}",
+                      f"{np.mean(radius):0.1f} " + plus_minus + f" {np.std(radius):0.1f}",
+                      f"{np.mean(aspect_ratio):0.1f} " + plus_minus + f" {np.std(aspect_ratio):0.1f}",
+                      f"{np.mean(compact):0.1f} " + plus_minus + f" {np.std(compact):0.1f}",
+                      f"{np.mean(solidity):0.1f} " + plus_minus + f" {np.std(solidity):0.1f}")
 
         console = Console()
         console.print(table)
@@ -416,8 +444,8 @@ class PecanPie(object):
         """
         # start timer
         t = _Timer(self._verbose)
-        if self._verbose:
-            print('Calculating metadata...', end="")
+        t.tic('Calculating metadata...')
+
         # define columns for storing parameters to be calculated in later sessions
         d = {'ROInum': self.cells_to_process, 'ypix': None, 'xpix': None, 'contour': None, 'area': None,
              'perimeter': None, 'centroid': None, 'orientation': None, 'major_axis': None, 'minor_axis': None,
@@ -489,13 +517,13 @@ class PecanPie(object):
         self.print_metadata()
 
     def print_metadata(self):
-
+        plus_minus = u"\u00B1"
         print(_bcolors.OKGREEN, 'Total number of ROIs = ', len(self.stat), _bcolors.ENDC)
         print(_bcolors.OKGREEN, 'Total number of ROIs selected for processing = ', len(self.cells_to_process),
               _bcolors.ENDC)
 
         # create table for displaying metadata
-        table = Table(title="Metadata of PecanPie (Mean" + u"\u00B1" + "SD)")
+        table = Table(title="Metadata of PecanPie (Mean " + plus_minus + " SD)")
 
         table.add_column("Type", justify="right")
         table.add_column("Area\n(sq. px)", justify="center")
@@ -515,13 +543,13 @@ class PecanPie(object):
         solidity = np.multiply(self.metadata.iscell[:], self.metadata.solidity.values[:])
 
         table.add_row("Cell",
-                      f"{np.mean(area):0.1f} " + u"\u00B1" + f" {np.std(area):0.1f}",
-                      f"{np.mean(major_axis):0.1f} " + u"\u00B1" + f" {np.std(major_axis):0.1f}",
-                      f"{np.mean(aspect_ratio):0.1f} " + u"\u00B1" + f" {np.std(aspect_ratio):0.1f}",
-                      # f"{np.mean(orientation):0.1f} " + u"\u00B1" + f" {np.std(orientation):0.1f}",
-                      # f"{np.mean(circularity):0.1f} " + u"\u00B1" + f" {np.std(circularity):0.1f}",
-                      f"{np.mean(compact):0.1f} " + u"\u00B1" + f" {np.std(compact):0.1f}",
-                      f"{np.mean(solidity):0.1f} " + u"\u00B1" + f" {np.std(solidity):0.1f}")
+                      f"{np.mean(area):0.1f} " + plus_minus + f" {np.std(area):0.1f}",
+                      f"{np.mean(major_axis):0.1f} " + plus_minus + f" {np.std(major_axis):0.1f}",
+                      f"{np.mean(aspect_ratio):0.1f} " + plus_minus + f" {np.std(aspect_ratio):0.1f}",
+                      # f"{np.mean(orientation):0.1f} " + plus_minus + f" {np.std(orientation):0.1f}",
+                      # f"{np.mean(circularity):0.1f} " + plus_minus + f" {np.std(circularity):0.1f}",
+                      f"{np.mean(compact):0.1f} " + plus_minus + f" {np.std(compact):0.1f}",
+                      f"{np.mean(solidity):0.1f} " + plus_minus + f" {np.std(solidity):0.1f}")
 
         area = np.multiply(-(self.metadata.iscell[:] - 1), self.metadata.area.values[:])
         major_axis = np.multiply(-(self.metadata.iscell[:] - 1), self.metadata.major_axis.values[:])
@@ -532,13 +560,13 @@ class PecanPie(object):
         solidity = np.multiply(-(self.metadata.iscell[:] - 1), self.metadata.solidity.values[:])
 
         table.add_row("Not Cell",
-                      f"{np.mean(area):0.1f} " + u"\u00B1" + f" {np.std(area):0.1f}",
-                      f"{np.mean(major_axis):0.1f} " + u"\u00B1" + f" {np.std(major_axis):0.1f}",
-                      f"{np.mean(aspect_ratio):0.1f} " + u"\u00B1" + f" {np.std(aspect_ratio):0.1f}",
-                      # f"{np.mean(orientation):0.1f} " + u"\u00B1" + f" {np.std(orientation):0.1f}",
-                      # f"{np.mean(circularity):0.1f} " + u"\u00B1" + f" {np.std(circularity):0.1f}",
-                      f"{np.mean(compact):0.1f} " + u"\u00B1" + f" {np.std(compact):0.1f}",
-                      f"{np.mean(solidity):0.1f} " + u"\u00B1" + f" {np.std(solidity):0.1f}")
+                      f"{np.mean(area):0.1f} " + plus_minus + f" {np.std(area):0.1f}",
+                      f"{np.mean(major_axis):0.1f} " + plus_minus + f" {np.std(major_axis):0.1f}",
+                      f"{np.mean(aspect_ratio):0.1f} " + plus_minus + f" {np.std(aspect_ratio):0.1f}",
+                      # f"{np.mean(orientation):0.1f} " + plus_minus + f" {np.std(orientation):0.1f}",
+                      # f"{np.mean(circularity):0.1f} " + plus_minus + f" {np.std(circularity):0.1f}",
+                      f"{np.mean(compact):0.1f} " + plus_minus + f" {np.std(compact):0.1f}",
+                      f"{np.mean(solidity):0.1f} " + plus_minus + f" {np.std(solidity):0.1f}")
 
         console = Console()
         console.print(table)
@@ -598,9 +626,9 @@ class PecanPie(object):
         None.
 
         """
-        if self._verbose:
-            print("Creating plot for " + plottype + "...", end="")
+
         t = _Timer(self._verbose)
+        t.tic("Creating plot for " + plottype + "...")
 
         # check the current number of plots
         if not self.im[0]:  # the first dictionary is empty
@@ -699,7 +727,7 @@ class PecanPie(object):
             self.im[k]['type'] = 'image & line'
 
         else:
-            print("Plot type is undefined.")
+            print(_bcolors.WARNING, "Plot type is undefined.", _bcolors.ENDC)
             return 0
 
         # determining the canvas
@@ -934,16 +962,24 @@ class _Timer:
     def __init__(self, verbose=False):
         self._verbose = verbose
         self._start_time = time.perf_counter()
+        self._len_of_txt = 0
+        self._txt = None
 
-    def tic(self):
+    def tic(self, txt):
         # Start a new timer
         self._start_time = time.perf_counter()
+        self._txt = txt
+        self._len_of_txt = len(txt)
 
     def toc(self):
+        console_width = 80
         # Stop the timer, and report the elapsed time
         elapsed_time = time.perf_counter() - self._start_time
         if self._verbose:
-            print(f"Elapsed time: {elapsed_time:0.4f} seconds")
+            status = f"Elapsed time: {elapsed_time:0.4f} seconds"
+            status = status.rjust(console_width - self._len_of_txt, ".")
+            print(f"{self._txt}{status}")
+
         self._start_time = time.perf_counter()
 
 
