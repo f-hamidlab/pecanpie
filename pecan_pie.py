@@ -28,7 +28,7 @@ mpl.use('TkAgg')  # need this line, otherwise a pycharm console error would occu
 #                   class definition, load data                     #
 # ------------------------------------------------------------------#
 class PecanPie(object):
-    def __init__(self, read_path, save_path=None, cells_to_process=None, cells_to_plot=None, verbal=False):
+    def __init__(self, read_path, save_path=None, cells_to_process=None, cells_to_plot=None, verbose=False):
         """
         Start PecanPie. Load .npy and .bin data. Define other parameters.
 
@@ -53,14 +53,14 @@ class PecanPie(object):
         None.
 
         """
-        self._verbal = verbal
+        self._verbose = verbose
         self.read_path = read_path
         print(_bcolors.HEADER, "Path: " + self.read_path, _bcolors.ENDC)
-        if self._verbal:
+        if self._verbose:
             print("Reading .npy files...", end="")
 
         # start timer
-        t = _Timer(self._verbal)
+        t = _Timer(self._verbose)
 
         # load .npy files if they exists
         self.F = self.read_npy('F.npy')
@@ -83,14 +83,14 @@ class PecanPie(object):
         if os.path.isfile(self.read_path + 'data.bin'):
             # opens the registered binary
             f = open(self.read_path + 'data.bin', 'rb')
-            if self._verbal:
+            if self._verbose:
                 print("Reading .bin file...", end="")
             self.bindata = np.fromfile(f, dtype=np.int16)
             f.close()
             t.toc()  # print elapsed time
 
             # reshaping bindata in the format of time, y, x
-            if self._verbal:
+            if self._verbose:
                 print("Reshaping binary data...", end="")
             self.bindata = np.reshape(self.bindata, (self.ops['nframes'], self.ops['Ly'], self.ops['Lx']))
             t.toc()  # print elapsed time
@@ -102,7 +102,7 @@ class PecanPie(object):
         # calculate delta F over F
         self.dfof = self.cal_dfof()
 
-        if self._verbal:
+        if self._verbose:
             print("Defining other parameters...", end="")
         # add save_path if it doesn't exist
         if save_path is not None:
@@ -148,10 +148,8 @@ class PecanPie(object):
         self.label_mask = []
 
         # Display some data about the object
-        if self._verbal:
+        if self._verbose:
             print(_bcolors.OKGREEN, 'Done object initialization.', _bcolors.ENDC)
-
-        self.print_ori_metadata()
 
     def read_npy(self, filename):
         """
@@ -298,11 +296,11 @@ class PecanPie(object):
 
         """
         # start timer
-        t = _Timer(self._verbal)
+        t = _Timer(self._verbose)
 
         # calculate delta F over F
         if (self.F is not None) & (self.Fneu is not None):
-            if self._verbal:
+            if self._verbose:
                 print("Calculating delta F over F...", end="")
             data = (self.F - self.Fneu) / self.Fneu
             t.toc()  # print elapsed time
@@ -330,8 +328,8 @@ class PecanPie(object):
 
         """
         # start timer
-        t = _Timer(self._verbal)
-        if self._verbal:
+        t = _Timer(self._verbose)
+        if self._verbose:
             print('Creating dataframe from suite2p stat...', end="")
 
         if (self.stat is not None) and (self.iscell is not None):
@@ -417,8 +415,8 @@ class PecanPie(object):
 
         """
         # start timer
-        t = _Timer(self._verbal)
-        if self._verbal:
+        t = _Timer(self._verbose)
+        if self._verbose:
             print('Calculating metadata...', end="")
         # define columns for storing parameters to be calculated in later sessions
         d = {'ROInum': self.cells_to_process, 'ypix': None, 'xpix': None, 'contour': None, 'area': None,
@@ -600,9 +598,9 @@ class PecanPie(object):
         None.
 
         """
-        if self._verbal:
+        if self._verbose:
             print("Creating plot for " + plottype + "...", end="")
-        t = _Timer(self._verbal)
+        t = _Timer(self._verbose)
 
         # check the current number of plots
         if not self.im[0]:  # the first dictionary is empty
@@ -933,8 +931,8 @@ class _Timer:
 
     """
 
-    def __init__(self, verbal=False):
-        self._verbal = verbal
+    def __init__(self, verbose=False):
+        self._verbose = verbose
         self._start_time = time.perf_counter()
 
     def tic(self):
@@ -944,7 +942,7 @@ class _Timer:
     def toc(self):
         # Stop the timer, and report the elapsed time
         elapsed_time = time.perf_counter() - self._start_time
-        if self._verbal:
+        if self._verbose:
             print(f"Elapsed time: {elapsed_time:0.4f} seconds")
         self._start_time = time.perf_counter()
 
