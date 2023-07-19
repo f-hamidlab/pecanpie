@@ -10,6 +10,7 @@
 import numpy as np
 import math
 import matplotlib as mpl
+from matplotlib.backend_bases import MouseButton
 import matplotlib.pyplot as plt
 import os
 import pandas as pd
@@ -427,7 +428,7 @@ class PecanPie(object):
         console = Console()
         console.print(table)
 
-    def create_metadata(self):
+    def create_metadata(self, _print=True):
         """
         Calculate metadata of selected cells, columns include 'ROInum', 'iscell', 'ypix', 'xpix', 'contour', 'area',
         'centroid', 'major_axis', 'minor_axis', 'orientation', 'aspect_ratio', 'circularity', 'perimeter', 'compact',
@@ -514,7 +515,8 @@ class PecanPie(object):
                                                          np.power(self.metadata['major_axis'], 2))
 
         t.toc()  # print elapsed time
-        self.print_metadata()
+        if _print:
+            self.print_metadata()
 
     def print_metadata(self):
         plus_minus = u"\u00B1"
@@ -864,7 +866,7 @@ class PecanPie(object):
 
         self.default_cells_to_process()  # reset selection to default
 
-        self.create_metadata()
+        self.create_metadata(_print=False)
         self.cells_to_plot = self.cells_to_process
         self.create_fig('cell_selection', plot=True)
         self.plot_fig()

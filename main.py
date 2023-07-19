@@ -26,7 +26,7 @@ s2p.create_metadata()
 #            change selection of ROI from figure (optional)         #
 # ------------------------------------------------------------------#
 
-# s2p.cells_to_process_from_fig()
+s2p.cells_to_process_from_fig()
 # s2p.cells_to_plot_from_fig()
 
 
