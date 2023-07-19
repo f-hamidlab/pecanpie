@@ -3,14 +3,14 @@
 # Installation
 
 ```bash
-git clone git@github.com:f-hamidlab/suite2ptools.git
-cd suite2ptools
+git clone git@github.com:f-hamidlab/pecanpie.git
+cd pecanpie
 
-conda create -n s2ptools python=3.8
-conda activate s2ptools
+conda create -n pecanpie python=3.8
+conda activate pecanpie
 pip install .
 
-# or to install suite2ptools in editable mode
+# or to install pecanpie in editable mode
 # pip install -e . 
 ```
 This toolbox process outputs of [suite2p pipeline](https://suite2p.readthedocs.io/en/latest/index.html) for easier visualization and analysis of user-selected set of cells.<br>
