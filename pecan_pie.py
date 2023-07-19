@@ -1,7 +1,7 @@
 # This class object loads, processes, visualises data output from suite2p
 # Author                   : Jane Ling
 # Date of creation         : 22/06/2023
-# Date of last modification: 14/07/2023
+# Date of last modification: 19/07/2023
 
 # ------------------------------------------------------------------#
 #                         load packages                             #
@@ -13,7 +13,7 @@ import matplotlib as mpl
 import matplotlib.pyplot as plt
 import os
 import pandas as pd
-import skimage.measure
+
 # import pickle
 from rich.console import Console
 from rich.table import Table
@@ -28,6 +28,7 @@ mpl.use('TkAgg')  # need this line, otherwise a pycharm console error would occu
 # ------------------------------------------------------------------#
 #                   class definition, load data                     #
 # ------------------------------------------------------------------#
+
 class PecanPie(object):
     def __init__(self, read_path, save_path=None, cells_to_process=None, cells_to_plot=None, verbose=False):
         """
@@ -56,7 +57,7 @@ class PecanPie(object):
         """
         self._verbose = verbose
         self.read_path = read_path
-        print(_bcolors.HEADER, "Path: " + self.read_path, _bcolors.ENDC)
+        print(_BColours.HEADER, "Path: " + self.read_path, _BColours.ENDC)
 
         # start timer
         t = _Timer(self._verbose)
@@ -95,7 +96,7 @@ class PecanPie(object):
 
         else:
             self.bindata = None
-            print(_bcolors.WARNING, "data.bin does not exist. Registered images are not loaded.", _bcolors.ENDC)
+            print(_BColours.WARNING, "data.bin does not exist. Registered images are not loaded.", _BColours.ENDC)
 
         # calculate delta F over F
         self.dfof = self.cal_dfof()
@@ -148,7 +149,7 @@ class PecanPie(object):
 
         # Display some data about the object
         if self._verbose:
-            print(_bcolors.OKGREEN, 'Done object initialization.', _bcolors.ENDC)
+            print(_BColours.OKGREEN, 'Done object initialization.', _BColours.ENDC)
 
     def __repr__(self):
         """
@@ -163,53 +164,21 @@ class PecanPie(object):
         None.
 
         """
-        print(_bcolors.HEADER, "Path: " + self.read_path, _bcolors.ENDC)
-        self.print_data_status(self.F is not None, 'self.F')
-        self.print_data_status(self.Fneu is not None, 'self.Fneu')
-        self.print_data_status(self.spks is not None, 'self.spks')
-        self.print_data_status(self.stat is not None, 'self.stat')
-        self.print_data_status(self.ops is not None, 'self.ops')
-        self.print_data_status(self.bindata is not None, 'self.bindata')
+        print(_BColours.HEADER, "Path: " + self.read_path, _BColours.ENDC)
+        print_data_status(self.F is not None, 'self.F')
+        print_data_status(self.Fneu is not None, 'self.Fneu')
+        print_data_status(self.spks is not None, 'self.spks')
+        print_data_status(self.stat is not None, 'self.stat')
+        print_data_status(self.ops is not None, 'self.ops')
+        print_data_status(self.bindata is not None, 'self.bindata')
 
         print("\n")
-        self.print_data_status(self.ops['Lx'], 'Nx')
-        self.print_data_status(self.ops['Ly'], 'Ny')
-        self.print_data_status(self.F.shape[1], 'Timepoints')
+        print_data_status(self.ops['Lx'], 'Nx')
+        print_data_status(self.ops['Ly'], 'Ny')
+        print_data_status(self.F.shape[1], 'Timepoints')
 
         print("\n")
         self.print_metadata()
-
-    def print_data_status(self, val, txt):
-        """
-        Print information about a parameter.
-
-        Parameters
-        ----------
-        val : number / bool
-            Value of the parameter. 1 (True) to print a tick. 0 (False) to print a cross. Other values would be printed
-            as they are.
-
-        txt : str
-            Name of the parameter to print out.
-
-        Returns
-        -------
-        None.
-
-        """
-        tick = u'\u2713'
-        cross = 'X'
-        console_width = 79
-        txt = txt.split('.')[-1]
-
-        if val == 1:
-            status = tick.rjust(console_width - len(txt), ".")
-        elif val == 0:
-            status = cross.rjust(console_width - len(txt), ".")
-        else:  # other numerical values
-            status = str(val).rjust(console_width - len(txt), ".")
-
-        print(f"{txt} {status}")
 
     def read_npy(self, filename):
         """
@@ -230,8 +199,8 @@ class PecanPie(object):
             data = np.load(self.read_path + filename, allow_pickle=True)
         else:
             data = None
-            print(_bcolors.WARNING, "Warning: " + filename + "does not exist. Certain functions of this toolbox may "
-                                                             "be affected.", _bcolors.ENDC)
+            print(_BColours.WARNING, "Warning: " + filename + "does not exist. Certain functions of this toolbox may "
+                                                              "be affected.", _BColours.ENDC)
         return data
 
     def check_cells_to_process(self, cells_to_process):
@@ -254,9 +223,9 @@ class PecanPie(object):
             arr1 = set(range(len(self.stat)))
             arr2 = set(cells_to_process)
             if not arr1.union(arr2) == arr1:  # not a subset
-                print(_bcolors.WARNING,
+                print(_BColours.WARNING,
                       "object.cells_to_process is not a subset of the recognised ROIs. Resetting to the default "
-                      "selection.", _bcolors.ENDC)
+                      "selection.", _BColours.ENDC)
                 self.default_cells_to_process()
             else:
                 self.cells_to_process = np.array(cells_to_process)
@@ -284,9 +253,9 @@ class PecanPie(object):
             arr1 = set(self.cells_to_process)
             arr2 = set(cells_to_plot)
             if not arr1.union(arr2) == arr1:  # not a subset
-                print(_bcolors.WARNING,
+                print(_BColours.WARNING,
                       "object.cells_to_plot is not a subset of object.cells_to_process. Resetting to the default "
-                      "selection.", _bcolors.ENDC)
+                      "selection.", _BColours.ENDC)
                 self.default_cells_to_plot()
             else:
                 self.cells_to_plot = cells_to_plot
@@ -310,8 +279,8 @@ class PecanPie(object):
             self.cells_to_process = np.array(range(len(self.stat)))
         else:
             self.cells_to_process = None
-            print(_bcolors.WARNING, "object.stat is not present. Please define object.cells_to_process for further "
-                                    "processing and plotting.", _bcolors.ENDC)
+            print(_BColours.WARNING, "object.stat is not present. Please define object.cells_to_process for further "
+                                     "processing and plotting.", _BColours.ENDC)
 
     def default_cells_to_plot(self):
         """
@@ -335,8 +304,8 @@ class PecanPie(object):
             self.cells_to_plot = np.array(list(arr1.intersection(arr2)))
         else:
             self.cells_to_plot = None
-            print(_bcolors.WARNING, "object.iscell is not present. Please define object.cells_to_plot for further "
-                                    "processing and plotting.", _bcolors.ENDC)
+            print(_BColours.WARNING, "object.iscell is not present. Please define object.cells_to_plot for further "
+                                     "processing and plotting.", _BColours.ENDC)
 
     # ------------------------------------------------------------------#
     #                            pre-processing                         #
@@ -365,7 +334,7 @@ class PecanPie(object):
             t.toc()  # print elapsed time
         else:
             data = None
-            print(_bcolors.WARNING, "F and/or Fneu does not exist. Cannot calculate delta F over F.", _bcolors.ENDC)
+            print(_BColours.WARNING, "F and/or Fneu does not exist. Cannot calculate delta F over F.", _BColours.ENDC)
 
         return data
 
@@ -409,8 +378,8 @@ class PecanPie(object):
             t.toc()  # print elapsed time
 
         else:
-            print(_bcolors.WARNING, "object.stat and/or object.iscell does not exist. Cannot create dataframe from "
-                                    "suite2p stat.", _bcolors.ENDC)
+            print(_BColours.WARNING, "object.stat and/or object.iscell does not exist. Cannot create dataframe from "
+                                     "suite2p stat.", _BColours.ENDC)
 
     def print_ori_metadata(self):
         """
@@ -425,9 +394,9 @@ class PecanPie(object):
         None.
         """
         plus_minus = u"\u00B1"
-        print(_bcolors.OKGREEN, 'Total number of ROIs = ', len(self.stat), _bcolors.ENDC)
-        print(_bcolors.OKGREEN, 'Total number of ROIs classified as cells = ', int(np.sum(self.iscell, axis=0)[0]),
-              _bcolors.ENDC)
+        print(_BColours.OKGREEN, 'Total number of ROIs = ', len(self.stat), _BColours.ENDC)
+        print(_BColours.OKGREEN, 'Total number of ROIs classified as cells = ', int(np.sum(self.iscell, axis=0)[0]),
+              _BColours.ENDC)
 
         # create table for displaying metadata
         table = Table(title="Metadata from Suite2p (Mean " + plus_minus + " SD)")
@@ -575,9 +544,9 @@ class PecanPie(object):
         None.
         """
         plus_minus = u"\u00B1"
-        print(_bcolors.OKGREEN, 'Total number of ROIs = ', len(self.stat), _bcolors.ENDC)
-        print(_bcolors.OKGREEN, 'Total number of ROIs selected for processing = ', len(self.cells_to_process),
-              _bcolors.ENDC)
+        print(_BColours.OKGREEN, 'Total number of ROIs = ', len(self.stat), _BColours.ENDC)
+        print(_BColours.OKGREEN, 'Total number of ROIs selected for processing = ', len(self.cells_to_process),
+              _BColours.ENDC)
 
         # create table for displaying metadata
         table = Table(title="Metadata of PecanPie (Mean " + plus_minus + " SD)")
@@ -721,7 +690,7 @@ class PecanPie(object):
                 # get the contour of ROI
                 contour = self.metadata.loc[idx]['contour'].values[0]
                 self._im[k]['line_data'].append({'x': contour[:, 1], 'y': contour[:, 0],
-                                                'color': self._color['green'], 'linewidth': self._linewidth})
+                                                 'color': self._color['green'], 'linewidth': self._linewidth})
 
             self._im[k]['imdata'] = self.switch_idx_to_intensity()
             self._im[k]['title'] = "Contours of selected cells"
@@ -771,12 +740,12 @@ class PecanPie(object):
 
                 if n in self._tmp:
                     self._im[k]['line_data'].append({'x': contour[:, 1], 'y': contour[:, 0],
-                                                    'color': self._color['green'], 'linewidth': self._linewidth,
-                                                    'visible': True})
+                                                     'color': self._color['green'], 'linewidth': self._linewidth,
+                                                     'visible': True})
                 else:
                     self._im[k]['line_data'].append({'x': contour[:, 1], 'y': contour[:, 0],
-                                                    'color': self._color['green'], 'linewidth': self._linewidth,
-                                                    'visible': False})
+                                                     'color': self._color['green'], 'linewidth': self._linewidth,
+                                                     'visible': False})
 
             self._im[k]['imdata'] = self.switch_idx_to_intensity()
             self._im[k]['title'] = "Click on cells to select or de-select, press ENTER to quit"
@@ -784,7 +753,7 @@ class PecanPie(object):
             self._im[k]['type'] = 'image & line'
 
         else:
-            print(_bcolors.WARNING, "Plot type is undefined.", _bcolors.ENDC)
+            print(_BColours.WARNING, "Plot type is undefined.", _BColours.ENDC)
             return 0
 
         # determining the canvas
@@ -956,10 +925,10 @@ class PecanPie(object):
         self.plot_fig(_ion=True)
         self.cells_to_plot = self.get_selection()
         self._tmp = []
-        print(_bcolors.OKGREEN, 'Total number of ROIs selected for processing = ', len(self.cells_to_process),
-              _bcolors.ENDC)
-        print(_bcolors.OKGREEN, 'Total number of ROIs selected for plotting = ', len(self.cells_to_plot),
-              _bcolors.ENDC)
+        print(_BColours.OKGREEN, 'Total number of ROIs selected for processing = ', len(self.cells_to_process),
+              _BColours.ENDC)
+        print(_BColours.OKGREEN, 'Total number of ROIs selected for plotting = ', len(self.cells_to_plot),
+              _BColours.ENDC)
 
     def get_selection(self):
         """
@@ -1057,7 +1026,7 @@ class _Timer:
 #                     color of console print                        #
 # ------------------------------------------------------------------#
 
-class _bcolors:
+class _BColours:
     """
     Colours for printing
 
@@ -1079,3 +1048,39 @@ class _bcolors:
     ENDC = '\033[0m'
     BOLD = '\033[1m'
     UNDERLINE = '\033[4m'
+
+
+# ------------------------------------------------------------------#
+#                         static methods                            #
+# ------------------------------------------------------------------#
+def print_data_status(val, txt):
+    """
+    Print information about a parameter.
+
+    Parameters
+    ----------
+    val : number / bool
+        Value of the parameter. 1 (True) to print a tick. 0 (False) to print a cross. Other values would be printed
+        as they are.
+
+    txt : str
+        Name of the parameter to print out.
+
+    Returns
+    -------
+    None.
+
+    """
+    tick = u'\u2713'
+    cross = 'X'
+    console_width = 79
+    txt = txt.split('.')[-1]
+
+    if val == 1:
+        status = tick.rjust(console_width - len(txt), ".")
+    elif val == 0:
+        status = cross.rjust(console_width - len(txt), ".")
+    else:  # other numerical values
+        status = str(val).rjust(console_width - len(txt), ".")
+
+    print(f"{txt} {status}")
