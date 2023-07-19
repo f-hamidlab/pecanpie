@@ -13,6 +13,7 @@ import matplotlib as mpl
 import matplotlib.pyplot as plt
 import os
 import pandas as pd
+import skimage.measure
 # import pickle
 from rich.console import Console
 from rich.table import Table
@@ -136,6 +137,7 @@ class PecanPie(object):
         self._tmp = []
 
         # TODO: add other fields if needed
+        self.table = {}
         t.toc()  # print elapsed time
 
         # DataFrame for storing metadata
@@ -510,8 +512,11 @@ class PecanPie(object):
             im = binary_opening(im, disk(2))  # size of disk set to 2 pixels, which is the width of axon in the
             # example dataset
             label_mask = label_mask + im * (m + 1)  # +1 such that the first element is not labeled as 0
+            # pixels with overlapping cells are set to zero.
+            label_mask[label_mask > m + 1] = 0
 
         # get properties of the region and store in metadata
+
         regions = regionprops(label_mask.astype('int'))
 
         for props in regions:
@@ -895,7 +900,9 @@ class PecanPie(object):
 
         if _ion:
             plt.ion()
-        plt.show()
+            plt.show()
+        else:
+            plt.show(block=True)
         self._im = [{}]  # clear list after plotting
 
     # ------------------------------------------------------------------#
@@ -992,7 +999,6 @@ class PecanPie(object):
 
             except IndexError or TypeError:
                 # If no pts is read from ginput, IndexError would occur at "x = pts[0, 0].astype('int')"
-                # If click is outside cells, TypeError
                 plt.ioff()
                 plt.close()
                 break
