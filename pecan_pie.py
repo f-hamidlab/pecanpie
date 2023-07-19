@@ -784,7 +784,7 @@ class PecanPie(object):
 
         return vc(self.label_mask)
 
-    def plot_fig(self):
+    def plot_fig(self, _ion=False):
         """
         Visualize image data and saving
 
@@ -842,6 +842,8 @@ class PecanPie(object):
                     self.im[k]['filename'] = self.im[k]['filename'] + ".tif"
                 plt.savefig(self.save_path_fig + self.im[k]['filename'])
 
+        if _ion:
+            plt.ion()
         plt.show()
         self.im = [{}]  # clear list after plotting
 
@@ -869,7 +871,7 @@ class PecanPie(object):
         self.create_metadata(_print=False)
         self.cells_to_plot = self.cells_to_process
         self.create_fig('cell_selection', plot=True)
-        self.plot_fig()
+        self.plot_fig(_ion=True)
 
         self.cells_to_process = self.get_selection()
         self.cells_to_plot = np.array(list(set(self.cells_to_process).intersection(tmp_selection_plot)))
@@ -893,9 +895,13 @@ class PecanPie(object):
         self._tmp = np.array(self.cells_to_plot)
         self.cells_to_plot = self.cells_to_process
         self.create_fig('cell_selection', plot=True)
-        self.plot_fig()
+        self.plot_fig(_ion=True)
         self.cells_to_plot = self.get_selection()
         self._tmp = []
+        print(_bcolors.OKGREEN, 'Total number of ROIs selected for processing = ', len(self.cells_to_process),
+              _bcolors.ENDC)
+        print(_bcolors.OKGREEN, 'Total number of ROIs selected for plotting = ', len(self.cells_to_plot),
+              _bcolors.ENDC)
 
     def get_selection(self):
         """
@@ -925,7 +931,7 @@ class PecanPie(object):
                     tmp_selection = np.delete(tmp_selection, np.where(tmp_selection == ROInum))
                     plt.setp(ax.lines[n], visible=False)
 
-                elif ROInum in self._tmp:  # add to selection
+                elif ROInum in self.cells_to_plot:  # add to selection
                     n = int(np.where(self.cells_to_plot == ROInum)[0])
                     tmp_selection = np.sort(np.append(tmp_selection, ROInum))
                     plt.setp(ax.lines[n], visible=True)
@@ -936,6 +942,7 @@ class PecanPie(object):
             except IndexError or TypeError:
                 # If no pts is read from ginput, IndexError would occur at "x = pts[0, 0].astype('int')"
                 # If click is outside cells, TypeError
+                plt.ioff()
                 plt.close()
                 break
 
