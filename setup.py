@@ -22,7 +22,7 @@ VERSION = '0.0.1'
 
 # What packages are required for this module to be executed?
 REQUIRED = [
-    'numpy', 'matplotlib', 'pandas', 'scikit-image'
+    'numpy', 'matplotlib', 'pandas', 'scikit-image', 'rich'
 ]
 # Other required packages which are already installed
 # 'os', 'time'

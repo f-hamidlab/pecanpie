@@ -19,9 +19,8 @@ read_path = 'testdata/originals/'
 #                          creating object                          #
 # ------------------------------------------------------------------#
 # load .npy bindata from read_path and initiate pecanpie object
-s2p = pp.PecanPie(read_path)  # for test dataset
+s2p = pp.PecanPie(read_path, verbose=False)  # for test dataset
 s2p.create_metadata()
-
 
 # ------------------------------------------------------------------#
 #            change selection of ROI from figure (optional)         #
