@@ -10,7 +10,6 @@
 import numpy as np
 import math
 import matplotlib as mpl
-from matplotlib.backend_bases import MouseButton
 import matplotlib.pyplot as plt
 import os
 import pandas as pd
@@ -121,7 +120,7 @@ class PecanPie(object):
             os.makedirs(self.save_path_data)
 
         # list of dictionaries to store image data for plot/saving
-        self.im = [{}]
+        self._im = [{}]
 
         # check cell selections and assign values
         self.cells_to_process = None
@@ -150,6 +149,18 @@ class PecanPie(object):
             print(_bcolors.OKGREEN, 'Done object initialization.', _bcolors.ENDC)
 
     def __repr__(self):
+        """
+        Print information about the PecanPie object when the name of object is typed in the console.
+
+        Parameters
+        ----------
+        None.
+
+        Returns
+        -------
+        None.
+
+        """
         print(_bcolors.HEADER, "Path: " + self.read_path, _bcolors.ENDC)
         self.print_data_status(self.F is not None, 'self.F')
         self.print_data_status(self.Fneu is not None, 'self.Fneu')
@@ -167,17 +178,33 @@ class PecanPie(object):
         self.print_metadata()
 
     def print_data_status(self, val, txt):
+        """
+        Print information about a parameter.
+
+        Parameters
+        ----------
+        val : number / bool
+            Value of the parameter. 1 (True) to print a tick. 0 (False) to print a cross. Other values would be printed
+            as they are.
+
+        txt : str
+            Name of the parameter to print out.
+
+        Returns
+        -------
+        None.
+
+        """
         tick = u'\u2713'
         cross = 'X'
         console_width = 79
         txt = txt.split('.')[-1]
 
-        # print(txt, end="")
         if val == 1:
             status = tick.rjust(console_width - len(txt), ".")
         elif val == 0:
             status = cross.rjust(console_width - len(txt), ".")
-        else:
+        else:  # other numerical values
             status = str(val).rjust(console_width - len(txt), ".")
 
         print(f"{txt} {status}")
@@ -266,7 +293,7 @@ class PecanPie(object):
 
     def default_cells_to_process(self):
         """
-        Defining the default cells_to_process.
+        Defining the default cells_to_process, which is all ROIs.
 
         Parameters
         ----------
@@ -286,7 +313,7 @@ class PecanPie(object):
 
     def default_cells_to_plot(self):
         """
-        Defining the default cells_to_plot.
+        Defining the default cells_to_plot, which is all real cells within cells_to_process.
 
         Parameters
         ----------
@@ -384,6 +411,17 @@ class PecanPie(object):
                                     "suite2p stat.", _bcolors.ENDC)
 
     def print_ori_metadata(self):
+        """
+        Print information about the metadata obtained from suite2p.
+
+        Parameters
+        ----------
+        None.
+
+        Returns
+        -------
+        None.
+        """
         plus_minus = u"\u00B1"
         print(_bcolors.OKGREEN, 'Total number of ROIs = ', len(self.stat), _bcolors.ENDC)
         print(_bcolors.OKGREEN, 'Total number of ROIs classified as cells = ', int(np.sum(self.iscell, axis=0)[0]),
@@ -436,7 +474,8 @@ class PecanPie(object):
 
         Parameters
         ----------
-        None.
+        _print : bool
+            (FOR INTERNAL USE) Whether to print information about metadata after processing. (Default) True
 
         Returns
         -------
@@ -519,6 +558,17 @@ class PecanPie(object):
             self.print_metadata()
 
     def print_metadata(self):
+        """
+        Print information about the metadata calculated by PecanPie.
+
+        Parameters
+        ----------
+        None.
+
+        Returns
+        -------
+        None.
+        """
         plus_minus = u"\u00B1"
         print(_bcolors.OKGREEN, 'Total number of ROIs = ', len(self.stat), _bcolors.ENDC)
         print(_bcolors.OKGREEN, 'Total number of ROIs selected for processing = ', len(self.cells_to_process),
@@ -633,56 +683,56 @@ class PecanPie(object):
         t.tic("Creating plot for " + plottype + "...")
 
         # check the current number of plots
-        if not self.im[0]:  # the first dictionary is empty
+        if not self._im[0]:  # the first dictionary is empty
             k = 0
         else:  # the first dictionary is NOT empty. Append to the list of dictionaries
-            k = len(self.im)
-            self.im.append({})
+            k = len(self._im)
+            self._im.append({})
 
         # for plotting of the average binary image
         if plottype == 'avg_bin':
             if self.bindata is not None:
-                self.im[k]['imdata'] = np.mean(self.bindata, axis=0)
-                self.im[k]['title'] = "Motion-Corrected Image"
-                self.im[k]['cmap'] = 'gray'
-                self.im[k]['type'] = 'image'
+                self._im[k]['imdata'] = np.mean(self.bindata, axis=0)
+                self._im[k]['title'] = "Motion-Corrected Image"
+                self._im[k]['cmap'] = 'gray'
+                self._im[k]['type'] = 'image'
 
             else:
                 print("data.bin does not exist. Plot type is not supported.")
 
         # for plotting ROIs in peak delta F over F intensity, the mask for ROI is from output of suite2p
         elif plottype == 'selected_cells':
-            self.im[k]['imdata'] = self.switch_idx_to_intensity()
-            self.im[k]['title'] = "Selected cells at peak intensity"
-            self.im[k]['cmap'] = 'gray'
-            self.im[k]['type'] = 'image'
+            self._im[k]['imdata'] = self.switch_idx_to_intensity()
+            self._im[k]['title'] = "Selected cells at peak intensity"
+            self._im[k]['cmap'] = 'gray'
+            self._im[k]['type'] = 'image'
 
         # for plotting ROIs with their contours after morphological operations
         elif plottype == 'contour':
-            self.im[k]['line_data'] = []
+            self._im[k]['line_data'] = []
             for n in self.cells_to_plot:
                 idx = self.metadata.index[self.metadata['ROInum'] == n]  # the index to the ROI in metadata
 
                 # get the contour of ROI
                 contour = self.metadata.loc[idx]['contour'].values[0]
-                self.im[k]['line_data'].append({'x': contour[:, 1], 'y': contour[:, 0],
+                self._im[k]['line_data'].append({'x': contour[:, 1], 'y': contour[:, 0],
                                                 'color': self._color['green'], 'linewidth': self._linewidth})
 
-            self.im[k]['imdata'] = self.switch_idx_to_intensity()
-            self.im[k]['title'] = "Contours of selected cells"
-            self.im[k]['cmap'] = 'gray'
-            self.im[k]['type'] = 'image & line'
+            self._im[k]['imdata'] = self.switch_idx_to_intensity()
+            self._im[k]['title'] = "Contours of selected cells"
+            self._im[k]['cmap'] = 'gray'
+            self._im[k]['type'] = 'image & line'
 
         # for plotting ROIs with their contours and axes after morphological operations
         elif plottype == 'axis':
-            self.im[k]['line_data'] = []
+            self._im[k]['line_data'] = []
 
             for n in self.cells_to_plot:
                 idx = self.metadata.index[self.metadata['ROInum'] == n]  # the index to the ROI in metadata
 
                 # get the contour of ROI
                 contour = self.metadata.loc[idx]['contour'].values[0]
-                self.im[k]['line_data'].append({'x': contour[:, 1], 'y': contour[:, 0]})
+                self._im[k]['line_data'].append({'x': contour[:, 1], 'y': contour[:, 0]})
 
                 # for plotting the major and minor axes
                 centroid = self.metadata.loc[idx]['centroid'].values[0]
@@ -696,18 +746,18 @@ class PecanPie(object):
                 x2 = x0 - math.sin(orientation) * 0.5 * major_axis
                 y2 = y0 - math.cos(orientation) * 0.5 * major_axis
 
-                self.im[k]['line_data'].append(
+                self._im[k]['line_data'].append(
                     {'x': (x0, x1), 'y': (y0, y1), 'color': self._color['red'], 'linewidth': self._linewidth})
-                self.im[k]['line_data'].append(
+                self._im[k]['line_data'].append(
                     {'x': (x0, x2), 'y': (y0, y2), 'color': self._color['red'], 'linewidth': self._linewidth})
-            self.im[k]['imdata'] = self.switch_idx_to_intensity()
-            self.im[k]['title'] = "Axis of fitted ellipse"
-            self.im[k]['cmap'] = 'gray'
-            self.im[k]['type'] = 'image & line'
+            self._im[k]['imdata'] = self.switch_idx_to_intensity()
+            self._im[k]['title'] = "Axis of fitted ellipse"
+            self._im[k]['cmap'] = 'gray'
+            self._im[k]['type'] = 'image & line'
 
         # plotting all ROIs from stat for cell selection
         elif plottype == 'cell_selection':
-            self.im[k]['line_data'] = []
+            self._im[k]['line_data'] = []
 
             for n in self.cells_to_plot:
                 idx = self.metadata.index[self.metadata['ROInum'] == n]  # the index to the ROI in metadata
@@ -715,18 +765,18 @@ class PecanPie(object):
                 contour = self.metadata.loc[idx]['contour'].values[0]
 
                 if n in self._tmp:
-                    self.im[k]['line_data'].append({'x': contour[:, 1], 'y': contour[:, 0],
+                    self._im[k]['line_data'].append({'x': contour[:, 1], 'y': contour[:, 0],
                                                     'color': self._color['green'], 'linewidth': self._linewidth,
                                                     'visible': True})
                 else:
-                    self.im[k]['line_data'].append({'x': contour[:, 1], 'y': contour[:, 0],
+                    self._im[k]['line_data'].append({'x': contour[:, 1], 'y': contour[:, 0],
                                                     'color': self._color['green'], 'linewidth': self._linewidth,
                                                     'visible': False})
 
-            self.im[k]['imdata'] = self.switch_idx_to_intensity()
-            self.im[k]['title'] = "Click on cells to select or de-select, press ENTER to quit"
-            self.im[k]['cmap'] = 'gray'
-            self.im[k]['type'] = 'image & line'
+            self._im[k]['imdata'] = self.switch_idx_to_intensity()
+            self._im[k]['title'] = "Click on cells to select or de-select, press ENTER to quit"
+            self._im[k]['cmap'] = 'gray'
+            self._im[k]['type'] = 'image & line'
 
         else:
             print(_bcolors.WARNING, "Plot type is undefined.", _bcolors.ENDC)
@@ -734,19 +784,19 @@ class PecanPie(object):
 
         # determining the canvas
         if k == 0:  # the first plot
-            self.im[k]['canvas'] = 0
-        elif self.im[k - 1]['plot'] == 0:  # the previous plot is not shown
-            self.im[k]['canvas'] = self.im[k - 1]['canvas']
+            self._im[k]['canvas'] = 0
+        elif self._im[k - 1]['plot'] == 0:  # the previous plot is not shown
+            self._im[k]['canvas'] = self._im[k - 1]['canvas']
         else:
-            self.im[k]['canvas'] = self.im[k - 1]['canvas'] + 1
+            self._im[k]['canvas'] = self._im[k - 1]['canvas'] + 1
 
-        self.im[k]['xlabel'] = '(pixels)'
-        self.im[k]['ylabel'] = '(pixels)'
-        self.im[k]['xlim'] = [0, self.im[k]['imdata'].shape[1] - 1]
-        self.im[k]['ylim'] = [0, self.im[k]['imdata'].shape[0] - 1]
+        self._im[k]['xlabel'] = '(pixels)'
+        self._im[k]['ylabel'] = '(pixels)'
+        self._im[k]['xlim'] = [0, self._im[k]['imdata'].shape[1] - 1]
+        self._im[k]['ylim'] = [0, self._im[k]['imdata'].shape[0] - 1]
 
-        self.im[k]['plot'] = plot
-        self.im[k]['filename'] = filename
+        self._im[k]['plot'] = plot
+        self._im[k]['filename'] = filename
 
         t.toc()
 
@@ -790,40 +840,41 @@ class PecanPie(object):
 
         Parameters
         ----------
-        None.
+        _ion : bool
+            (FOR INTERNAL USE) Whether to turn interactive mode on. (Default) False
 
         Returns
         -------
         None.
 
         """
-        for k in range(0, len(self.im)):
-            if self.im[k]['plot'] is True:
-                plt.figure(self.im[k]['canvas'])
-                plt.title(self.im[k]['title'])
-                plt.xlabel(self.im[k]['xlabel'])
-                plt.ylabel(self.im[k]['ylabel'])
-                plt.xlim(self.im[k]['xlim'])
-                plt.ylim(self.im[k]['ylim'])
+        for k in range(0, len(self._im)):
+            if self._im[k]['plot'] is True:
+                plt.figure(self._im[k]['canvas'])
+                plt.title(self._im[k]['title'])
+                plt.xlabel(self._im[k]['xlabel'])
+                plt.ylabel(self._im[k]['ylabel'])
+                plt.xlim(self._im[k]['xlim'])
+                plt.ylim(self._im[k]['ylim'])
 
-                if self.im[k]['type'] == 'image':
-                    plt.imshow(self.im[k]['imdata'], cmap=self.im[k]['cmap'])
+                if self._im[k]['type'] == 'image':
+                    plt.imshow(self._im[k]['imdata'], cmap=self._im[k]['cmap'])
 
-                elif self.im[k]['type'] == 'image & line':
-                    plt.imshow(self.im[k]['imdata'], cmap=self.im[k]['cmap'])
+                elif self._im[k]['type'] == 'image & line':
+                    plt.imshow(self._im[k]['imdata'], cmap=self._im[k]['cmap'])
 
-                    num_lines = len(self.im[k]['line_data'])
+                    num_lines = len(self._im[k]['line_data'])
                     for n in range(num_lines):
-                        x = self.im[k]['line_data'][n]['x']
-                        y = self.im[k]['line_data'][n]['y']
+                        x = self._im[k]['line_data'][n]['x']
+                        y = self._im[k]['line_data'][n]['y']
 
-                        if 'color' in self.im[k]['line_data'][n]:
-                            color = self.im[k]['line_data'][n]['color']
+                        if 'color' in self._im[k]['line_data'][n]:
+                            color = self._im[k]['line_data'][n]['color']
                         else:
                             color = None
 
-                        if 'linewidth' in self.im[k]['line_data'][n]:
-                            linewidth = self.im[k]['line_data'][n]['linewidth']
+                        if 'linewidth' in self._im[k]['line_data'][n]:
+                            linewidth = self._im[k]['line_data'][n]['linewidth']
                         else:
                             linewidth = None
 
@@ -832,20 +883,20 @@ class PecanPie(object):
                         else:
                             plt.plot(x, y, color=color, linewidth=linewidth)
 
-                        if 'visible' in self.im[k]['line_data'][n]:
-                            visible = self.im[k]['line_data'][n]['visible']
+                        if 'visible' in self._im[k]['line_data'][n]:
+                            visible = self._im[k]['line_data'][n]['visible']
                             ax = plt.gca()
                             plt.setp(ax.lines[n], visible=visible)
 
-            if self.im[k]['filename'] is not None:  # save as a tif file if 'filename' has been assigned
-                if not self.im[k]['filename'].endswith(".tif"):
-                    self.im[k]['filename'] = self.im[k]['filename'] + ".tif"
-                plt.savefig(self.save_path_fig + self.im[k]['filename'])
+            if self._im[k]['filename'] is not None:  # save as a tif file if 'filename' has been assigned
+                if not self._im[k]['filename'].endswith(".tif"):
+                    self._im[k]['filename'] = self._im[k]['filename'] + ".tif"
+                plt.savefig(self.save_path_fig + self._im[k]['filename'])
 
         if _ion:
             plt.ion()
         plt.show()
-        self.im = [{}]  # clear list after plotting
+        self._im = [{}]  # clear list after plotting
 
     # ------------------------------------------------------------------#
     #                           Data Exploration                        #
@@ -960,7 +1011,11 @@ class _Timer:
 
     Parameters
     ----------
-    None.
+    verbose : bool
+        Whether to print timing in console or not. (Default) False
+
+    txt : str
+        Description of the current process.
 
     Returns
     -------
@@ -997,11 +1052,23 @@ class _Timer:
 # ------------------------------------------------------------------#
 
 class _bcolors:
-    HEADER = '\033[95m'
+    """
+    Colours for printing
+
+    Parameters
+    ----------
+    None.
+
+    Returns
+    -------
+    None.
+
+    """
+    HEADER = '\033[95m'  # pink
     OKBLUE = '\033[94m'
     OKCYAN = '\033[96m'
     OKGREEN = '\033[92m'
-    WARNING = '\033[93m'
+    WARNING = '\033[93m'  # yellow
     FAIL = '\033[91m'
     ENDC = '\033[0m'
     BOLD = '\033[1m'
