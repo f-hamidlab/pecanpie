@@ -11,6 +11,7 @@ import numpy as np
 import math
 import matplotlib as mpl
 import matplotlib.pyplot as plt
+import mplcursors
 import os
 import pandas as pd
 
@@ -946,6 +947,22 @@ class PecanPie(object):
         """
         ax = plt.gca()
         tmp_selection = self._tmp
+
+        cursor = mplcursors.cursor(hover=mplcursors.HoverMode.Transient)
+
+        @cursor.connect("add")
+        def on_add(sel):
+            cursor_x, cursor_y = sel.target
+            cursor_x = round(cursor_x)
+            cursor_y = round(cursor_y)
+            ROInum = int(self.label_mask[cursor_y, cursor_x] - 1)  # -1 to convert label to ROInum
+            if ROInum != -1:
+
+                sel.annotation.set(text=f"ROI: {ROInum}",
+                                   bbox=dict(boxstyle=None, fc="lightblue", ec="lightblue", alpha=0.5))
+            else:
+                sel.annotation.set(text=None)
+
         while True:
             try:
                 pts = np.rint(np.array(plt.ginput(1, timeout=-1)))  # timeout = -1 for no timeout
