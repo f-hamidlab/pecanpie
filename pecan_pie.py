@@ -492,18 +492,45 @@ class PecanPie(object):
         for props in regions:
             idx = self.metadata.index[self.metadata['ROInum'] == props.label - 1]  # the index to the ROI in metadata
             n = idx.values[0]
+            contours = measure.find_contours(label_mask == self.metadata['ROInum'][n] + 1)
+            self.metadata['iscell'][n] = self.iscell[self.cells_to_process[n]][0]  # whether the ROI is
+            # identified as a cell in suite2p
 
-            self.metadata['centroid'][n] = props.centroid
-            self.metadata['orientation'][n] = props.orientation
-            self.metadata['major_axis'][n] = props.axis_major_length
-            self.metadata['minor_axis'][n] = props.axis_minor_length
-            self.metadata['perimeter'][n] = props.perimeter
-            self.metadata['solidity'][n] = props.solidity
-            self.metadata['area'][n] = props.num_pixels  # number of pixels
-            self.metadata['iscell'][n] = self.iscell[
-                self.cells_to_process[n]][0]  # whether the ROI is identified as a cell in suite2p
-            self.metadata['contour'][n] = np.squeeze(
-                np.array(measure.find_contours(label_mask == self.metadata['ROInum'][n] + 1)))  # contour of ROIs
+            if len(contours) == 1:
+                self.metadata['centroid'][n] = props.centroid
+                self.metadata['orientation'][n] = props.orientation
+                self.metadata['major_axis'][n] = props.axis_major_length
+                self.metadata['minor_axis'][n] = props.axis_minor_length
+                self.metadata['perimeter'][n] = props.perimeter
+                self.metadata['solidity'][n] = props.solidity
+                self.metadata['area'][n] = props.num_pixels  # number of pixels
+
+            elif len(contours) > 1:
+                # special case for wierd shapes resulting in two contours after opening and closing
+                # keep the largest area only
+                lengths = [len(arr) for arr in contours]
+                contours = contours[lengths.index(max(lengths))]
+
+                label_mask1 = np.zeros((self.ops['Ly'], self.ops['Lx']))
+                label_mask1[label_mask == props.label] = 1
+                points = np.transpose(np.array(label_mask1.nonzero()))
+                mask = measure.points_in_poly(points, contours)
+                label_mask1[points[mask][:, 0], points[mask][:, 1]] = props.label
+                label_mask1[points[~mask][:, 0], points[~mask][:, 1]] = 0
+
+                # update label_mask
+                label_mask1[points[~mask][:, 0], points[~mask][:, 1]] = 0
+                regions1 = regionprops(label_mask1.astype('int'))
+                for props1 in regions1:
+                    self.metadata['centroid'][n] = props1.centroid
+                    self.metadata['orientation'][n] = props1.orientation
+                    self.metadata['major_axis'][n] = props1.axis_major_length
+                    self.metadata['minor_axis'][n] = props1.axis_minor_length
+                    self.metadata['perimeter'][n] = props1.perimeter
+                    self.metadata['solidity'][n] = props1.solidity
+                    self.metadata['area'][n] = props1.num_pixels  # number of pixels
+
+            self.metadata['contour'][n] = np.squeeze(np.array(contours))  # contour of ROIs
 
         # Trimming metadata to remove zero entries
         # area of cell has to be more than 1 pixel for calculation of major and minor axis
