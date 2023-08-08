@@ -523,26 +523,15 @@ class PecanPie(object):
         regions = regionprops(label_mask.astype('int'))
         t1 = _Timer(verbose=True)
         t1.tic("region props")
-        for props in regions:
-            idx = self.metadata.index[self.metadata['ROInum'] == props.label - 1]  # the index to the ROI in metadata
-            n = idx.values[0]
-            contours = measure.find_contours(label_mask == self.metadata['ROInum'][n] + 1)
-            self.metadata['iscell'][n] = self.iscell[self.cells_to_process[n]][0]  # whether the ROI is
-            # identified as a cell in suite2p
 
-            # TODO: see if batch assignment of value is possible
-            if len(contours) == 1:
-                self.metadata['centroid'][n] = props.centroid
-                self.metadata['orientation'][n] = props.orientation
-                self.metadata['major_axis'][n] = props.axis_major_length
-                self.metadata['minor_axis'][n] = props.axis_minor_length
-                self.metadata['perimeter'][n] = props.perimeter
-                self.metadata['solidity'][n] = props.solidity
-                self.metadata['area'][n] = props.num_pixels  # number of pixels
+        multiple_contour = [d for d in regions if d['euler_number'] > 1]
 
-            elif len(contours) > 1:
-                # special case for wierd shapes resulting in two contours after opening and closing
-                # keep the largest area only
+        # if any fo the regions has multiple contours, remove the smaller contour
+        if multiple_contour:
+            for props in multiple_contour:
+                idx = self.metadata.index[self.metadata['ROInum'] == props.label - 1]  # the index to the ROI in metadata
+                n = idx.values[0]
+                contours = measure.find_contours(label_mask == self.metadata['ROInum'][n] + 1)
                 lengths = [len(arr) for arr in contours]
                 contours = contours[lengths.index(max(lengths))]
 
@@ -556,14 +545,22 @@ class PecanPie(object):
                 # update label_mask
                 label_mask[points[~mask][:, 0], points[~mask][:, 1]] = 0
                 regions1 = regionprops(label_mask1.astype('int'))
-                for props1 in regions1:
-                    self.metadata['centroid'][n] = props1.centroid
-                    self.metadata['orientation'][n] = props1.orientation
-                    self.metadata['major_axis'][n] = props1.axis_major_length
-                    self.metadata['minor_axis'][n] = props1.axis_minor_length
-                    self.metadata['perimeter'][n] = props1.perimeter
-                    self.metadata['solidity'][n] = props1.solidity
-                    self.metadata['area'][n] = props1.num_pixels  # number of pixels
+                idx = next((index for (index, d) in enumerate(regions) if d["label"] == props.label), None)
+                regions[idx] = regions1[0]
+
+        # assign values to self.matadata
+        idx = np.array([props['label'] for props in regions]) - 1
+        idx = self.metadata.index[np.isin(self.metadata['ROInum'], idx)]
+        n = idx.values[:]
+        self.metadata['iscell'][n] = self.iscell[self.cells_to_process[n], 0]
+
+        self.metadata['area'][n] = np.array([props['num_pixels'] for props in regions])  # number of pixels
+        self.metadata['major_axis'][n] = np.array([props['axis_major_length'] for props in regions])
+        self.metadata['minor_axis'][n] = np.array([props['axis_minor_length'] for props in regions])
+        self.metadata['orientation'][n] = np.array([props['orientation'] for props in regions])
+        self.metadata['perimeter'][n] = np.array([props['perimeter'] for props in regions])
+        self.metadata['solidity'][n] = np.array([props['solidity'] for props in regions])
+        self.metadata['centroid'][n] = [props['centroid'] for props in regions]
 
         t1.toc()
         # Trimming metadata to remove zero entries
@@ -580,7 +577,7 @@ class PecanPie(object):
 
         # calculations for other items in metadata
         # ref: https://imagej.nih.gov/ij/docs/guide/146-30.html
-        self.metadata['aspect_ratio'] = self.metadata['major_axis'] / self.metadata['minor_axis']
+        # self.metadata['aspect_ratio'] = self.metadata['major_axis'] / self.metadata['minor_axis']
         self.metadata['circularity'] = 4 * np.pi * np.divide(self.metadata['area'],
                                                              np.power(self.metadata['perimeter'], 2))
         self.metadata['compact'] = 4 / np.pi * np.divide(self.metadata['area'],
@@ -623,13 +620,16 @@ class PecanPie(object):
             # should be set according to the maximum 'hole' observed in the dataset.
             im = binary_opening(im, disk(2))  # size of disk set to 2 pixels, which is the width of axon in the
             # example dataset
+
+            # TODO: check that there is only one cell
+
             label_mask = label_mask + im * (m + 1)  # +1 such that the first element is not labeled as 0
 
             # pixels with overlapping cells are set to zero.
             im = np.where(im, label_mask, 0)
             label_mask = np.where(im > m + 1, 0, label_mask)
 
-            org_label_mask = org_label_mask.astype('int')
+        org_label_mask = org_label_mask.astype('int')
 
         label_mask[np.multiply(label_mask, org_label_mask)] = 0
 
