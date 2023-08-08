@@ -11,6 +11,7 @@ import numpy as np
 import math
 import matplotlib as mpl
 import matplotlib.pyplot as plt
+from matplotlib.colors import LinearSegmentedColormap
 import mplcursors
 import os
 import pandas as pd
@@ -21,6 +22,7 @@ from rich.table import Table
 from skimage import measure
 from skimage.measure import regionprops
 from skimage.morphology import disk, binary_closing, binary_opening
+from skimage.segmentation import find_boundaries
 import time
 
 mpl.use('TkAgg')  # need this line, otherwise a pycharm console error would occur
@@ -134,6 +136,8 @@ class PecanPie(object):
         # _color scheme / plot properties
         self._color = {'red': 'salmon', 'green': 'seagreen'}
         self._linewidth = 2
+        create_cmap("#2E8B57")  # colormap for contours, #2E8B57 is seagreen
+        self.overlay_handle = None
 
         # temporary data slot for passing internal variables
         self._tmp = []
@@ -147,6 +151,7 @@ class PecanPie(object):
         self.create_ori_metadata()  # initialize values from stat
         self.metadata = pd.DataFrame()  # initialize metadata of cells_to_process
         self.label_mask = []
+        self.contour_mask = []
 
         # Display some data about the object
         if self._verbose:
@@ -376,6 +381,8 @@ class PecanPie(object):
             get_data_from_stat(ncells, 'compact', 'compact')
             get_data_from_stat(ncells, 'solidity', 'solidity')
 
+            self.ori_metadata['skip'] = np.zeros(ncells)
+
             t.toc()  # print elapsed time
 
         else:
@@ -440,9 +447,9 @@ class PecanPie(object):
 
     def create_metadata(self, _print=True):
         """
-        Calculate metadata of selected cells, columns include 'ROInum', 'iscell', 'ypix', 'xpix', 'contour', 'area',
+        Calculate metadata of selected cells, columns include 'ROInum', 'iscell', 'area',
         'centroid', 'major_axis', 'minor_axis', 'orientation', 'aspect_ratio', 'circularity', 'perimeter', 'compact',
-         'solidity'
+         'solidity', 'dfof'
 
         Parameters
         ----------
@@ -458,37 +465,64 @@ class PecanPie(object):
         t = _Timer(self._verbose)
         t.tic('Calculating metadata...')
 
+        # if metadata has not been defined before
+        df = self.metadata
+        if df.empty:
+
+            self.metadata = self.init_df(self.cells_to_process)
+            label_mask = np.zeros((self.ops['Ly'], self.ops['Lx']))
+            label_mask = self.get_label_mask(label_mask, self.cells_to_process)
+            self.label_mask = self.fill_df(label_mask)
+            contour_mask = find_boundaries(self.label_mask, connectivity=1, mode='inner', background=0)
+            self.contour_mask = np.multiply(contour_mask, label_mask)
+
+        else:  # self.metadata has been defined before
+            # compare new cell_to_process with current set
+            old_arr = np.unique(self.label_mask) - 1
+            old_arr = old_arr[1:]  # exclude value 0
+            new_arr = self.cells_to_process
+
+            # new_arr not in old_arr
+            # -> add new cells to list
+            idx = new_arr[np.isin(new_arr, old_arr, assume_unique=True, invert=True)]
+            if idx.size != 0:
+                label_mask = self.get_label_mask(self.label_mask, idx)
+                self.metadata = pd.concat([self.metadata, self.init_df(idx)], ignore_index=True)
+                self.metadata.sort_values(by=['ROInum'])
+                label_mask = self.fill_df(label_mask)
+                self.label_mask = label_mask + self.label_mask
+                contour_mask = find_boundaries(label_mask, connectivity=1, mode='inner', background=0)
+                self.contour_mask = np.multiply(contour_mask, label_mask) + self.contour_mask
+
+            # old_arr not in new_arr
+            # -> remove cell from dataframe, label_mask and contour_mask
+            idx = old_arr[np.isin(old_arr, new_arr, assume_unique=True, invert=True)]
+            if idx.size != 0:
+                self.metadata = self.metadata[~self.metadata['ROInum'].isin(idx)]
+                self.label_mask[np.isin(self.label_mask, idx + 1)] = 0
+                self.contour_mask[np.isin(self.contour_mask, idx + 1)] = 0
+
+        t.toc()  # print elapsed time
+        if _print:
+            self.print_metadata()
+
+    def init_df(self, idx_list):
         # define columns for storing parameters to be calculated in later sessions
-        d = {'ROInum': self.cells_to_process, 'ypix': None, 'xpix': None, 'contour': None, 'area': None,
-             'perimeter': None, 'centroid': None, 'orientation': None, 'major_axis': None, 'minor_axis': None,
-             'aspect_ratio': None, 'circularity': None, 'compact': None, 'solidity': None, 'iscell': None}
-        self.metadata = pd.DataFrame(data=d)
-
+        max_dfof = np.max(self.dfof, axis=1)
+        d = {'ROInum': idx_list, 'dfof': max_dfof[idx_list],
+             'area': None, 'perimeter': None, 'centroid': None, 'orientation': None,
+             'major_axis': None, 'minor_axis': None, 'aspect_ratio': None, 'circularity': None, 'compact': None,
+             'solidity': None, 'iscell': None}
+        df = pd.DataFrame(data=d)
         # this line allows the assignment of the array
-        self.metadata = self.metadata.astype(object)
-        label_mask = np.zeros((self.ops['Ly'], self.ops['Lx']))
+        df = df.astype(object)
+        return df
 
-        for n, m in enumerate(self.cells_to_process):
-            # m is the index to the ROI in stat
-            # n is the index to the ROI in the new metadata
-            ypix = self.stat[m]['ypix'][~self.stat[m]['overlap']]
-            xpix = self.stat[m]['xpix'][~self.stat[m]['overlap']]
-
-            # for storing the image of individual cell, changes over loops
-            im = np.zeros((self.ops['Ly'], self.ops['Lx']))
-            im[ypix, xpix] = 1
-            im = binary_closing(im, disk(4))  # size of disk set to 4 pixels for example data set. The size of disk
-            # should be set according to the maximum 'hole' observed in the dataset.
-            im = binary_opening(im, disk(2))  # size of disk set to 2 pixels, which is the width of axon in the
-            # example dataset
-            label_mask = label_mask + im * (m + 1)  # +1 such that the first element is not labeled as 0
-            # pixels with overlapping cells are set to zero.
-            label_mask[label_mask > m + 1] = 0
-
+    def fill_df(self, label_mask):
         # get properties of the region and store in metadata
-
         regions = regionprops(label_mask.astype('int'))
-
+        t1 = _Timer(verbose=True)
+        t1.tic("region props")
         for props in regions:
             idx = self.metadata.index[self.metadata['ROInum'] == props.label - 1]  # the index to the ROI in metadata
             n = idx.values[0]
@@ -496,6 +530,7 @@ class PecanPie(object):
             self.metadata['iscell'][n] = self.iscell[self.cells_to_process[n]][0]  # whether the ROI is
             # identified as a cell in suite2p
 
+            # TODO: see if batch assignment of value is possible
             if len(contours) == 1:
                 self.metadata['centroid'][n] = props.centroid
                 self.metadata['orientation'][n] = props.orientation
@@ -519,7 +554,7 @@ class PecanPie(object):
                 label_mask1[points[~mask][:, 0], points[~mask][:, 1]] = 0
 
                 # update label_mask
-                label_mask1[points[~mask][:, 0], points[~mask][:, 1]] = 0
+                label_mask[points[~mask][:, 0], points[~mask][:, 1]] = 0
                 regions1 = regionprops(label_mask1.astype('int'))
                 for props1 in regions1:
                     self.metadata['centroid'][n] = props1.centroid
@@ -530,19 +565,15 @@ class PecanPie(object):
                     self.metadata['solidity'][n] = props1.solidity
                     self.metadata['area'][n] = props1.num_pixels  # number of pixels
 
-            self.metadata['contour'][n] = np.squeeze(np.array(contours))  # contour of ROIs
-
+        t1.toc()
         # Trimming metadata to remove zero entries
         # area of cell has to be more than 1 pixel for calculation of major and minor axis
         area_threshold = 1
-
-        def switch_val(x):
-            return new_vals[old_vals.index(x)] if x in old_vals else x
-
-        old_vals = list(self.metadata[self.metadata['area'] <= area_threshold]['ROInum'] + 1)
-        new_vals = list(np.zeros(len(old_vals)))
-        vc = np.vectorize(switch_val)
-        self.label_mask = vc(label_mask)
+        df = self.metadata[self.metadata['area'].isnull()]
+        idx = np.array(df['ROInum'], dtype='int')
+        old_val = np.array(label_mask, dtype='int')
+        label_mask[np.isin(old_val, idx + 1)] = 0
+        self.ori_metadata['skip'][idx] = 1
 
         self.metadata = self.metadata.loc[self.metadata['area'] > area_threshold]
         self.cells_to_process = np.array(self.metadata['ROInum']).astype('int')
@@ -555,9 +586,54 @@ class PecanPie(object):
         self.metadata['compact'] = 4 / np.pi * np.divide(self.metadata['area'],
                                                          np.power(self.metadata['major_axis'], 2))
 
-        t.toc()  # print elapsed time
-        if _print:
-            self.print_metadata()
+        return label_mask
+
+    def get_label_mask(self, org_label_mask, idx_list):
+        """
+        Print information about the metadata calculated by PecanPie.
+
+        Parameters
+        ----------
+        org_label_mask : ndarray
+            original label_mask
+
+        idx_list : array
+            indexes of cells to be added to label_mask
+
+        Returns
+        -------
+        None.
+        """
+        label_mask = np.zeros((self.ops['Ly'], self.ops['Lx']), dtype='int')
+        # remove indexes if the cells have been computed before and area is None
+        idx = np.nonzero(np.array(self.ori_metadata['skip']))
+        idx = idx[0]
+        idx_list = idx_list[np.isin(idx_list, idx, invert=True)]
+
+        for n, m in enumerate(idx_list):
+            # m is the index to the ROI in stat
+            # n is the index to the ROI in the new metadata
+            ypix = self.stat[m]['ypix'][~self.stat[m]['overlap']]
+            xpix = self.stat[m]['xpix'][~self.stat[m]['overlap']]
+
+            # for storing the image of individual cell, changes over loops
+            im = np.zeros((self.ops['Ly'], self.ops['Lx']))
+            im[ypix, xpix] = 1
+            im = binary_closing(im, disk(4))  # size of disk set to 4 pixels for example data set. The size of disk
+            # should be set according to the maximum 'hole' observed in the dataset.
+            im = binary_opening(im, disk(2))  # size of disk set to 2 pixels, which is the width of axon in the
+            # example dataset
+            label_mask = label_mask + im * (m + 1)  # +1 such that the first element is not labeled as 0
+
+            # pixels with overlapping cells are set to zero.
+            im = np.where(im, label_mask, 0)
+            label_mask = np.where(im > m + 1, 0, label_mask)
+
+            org_label_mask = org_label_mask.astype('int')
+
+        label_mask[np.multiply(label_mask, org_label_mask)] = 0
+
+        return label_mask
 
     def print_metadata(self):
         """
@@ -704,26 +780,18 @@ class PecanPie(object):
 
         # for plotting ROIs in peak delta F over F intensity, the mask for ROI is from output of suite2p
         elif plottype == 'selected_cells':
-            self._im[k]['imdata'] = self.switch_idx_to_intensity()
+            self._im[k]['imdata'] = self.switch_idx_to_value(self.metadata['dfof'])
             self._im[k]['title'] = "Selected cells at peak intensity"
             self._im[k]['cmap'] = 'gray'
             self._im[k]['type'] = 'image'
 
         # for plotting ROIs with their contours after morphological operations
         elif plottype == 'contour':
-            self._im[k]['line_data'] = []
-            for n in self.cells_to_plot:
-                idx = self.metadata.index[self.metadata['ROInum'] == n]  # the index to the ROI in metadata
-
-                # get the contour of ROI
-                contour = self.metadata.loc[idx]['contour'].values[0]
-                self._im[k]['line_data'].append({'x': contour[:, 1], 'y': contour[:, 0],
-                                                 'color': self._color['green'], 'linewidth': self._linewidth})
-
-            self._im[k]['imdata'] = self.switch_idx_to_intensity()
+            self._im[k]['overlay'] = np.isin(self.contour_mask, self.cells_to_plot + 1)
+            self._im[k]['imdata'] = self.switch_idx_to_value(self.metadata['dfof'])
             self._im[k]['title'] = "Contours of selected cells"
             self._im[k]['cmap'] = 'gray'
-            self._im[k]['type'] = 'image & line'
+            self._im[k]['type'] = 'image'
 
         # for plotting ROIs with their contours and axes after morphological operations
         elif plottype == 'axis':
@@ -752,33 +820,19 @@ class PecanPie(object):
                     {'x': (x0, x1), 'y': (y0, y1), 'color': self._color['red'], 'linewidth': self._linewidth})
                 self._im[k]['line_data'].append(
                     {'x': (x0, x2), 'y': (y0, y2), 'color': self._color['red'], 'linewidth': self._linewidth})
-            self._im[k]['imdata'] = self.switch_idx_to_intensity()
+            self._im[k]['imdata'] = self.switch_idx_to_value(self.metadata['dfof'])
             self._im[k]['title'] = "Axis of fitted ellipse"
             self._im[k]['cmap'] = 'gray'
             self._im[k]['type'] = 'image & line'
 
         # plotting all ROIs from stat for cell selection
         elif plottype == 'cell_selection':
-            self._im[k]['line_data'] = []
-
-            for n in self.cells_to_plot:
-                idx = self.metadata.index[self.metadata['ROInum'] == n]  # the index to the ROI in metadata
-                # get the contour of ROI
-                contour = self.metadata.loc[idx]['contour'].values[0]
-
-                if n in self._tmp:
-                    self._im[k]['line_data'].append({'x': contour[:, 1], 'y': contour[:, 0],
-                                                     'color': self._color['green'], 'linewidth': self._linewidth,
-                                                     'visible': True})
-                else:
-                    self._im[k]['line_data'].append({'x': contour[:, 1], 'y': contour[:, 0],
-                                                     'color': self._color['green'], 'linewidth': self._linewidth,
-                                                     'visible': False})
-
-            self._im[k]['imdata'] = self.switch_idx_to_intensity()
+            test_elements = np.array(self._tmp)
+            self._im[k]['overlay'] = np.isin(self.contour_mask, test_elements+1)
+            self._im[k]['imdata'] = self.switch_idx_to_value(self.metadata['dfof'])
             self._im[k]['title'] = "Click on cells to select or de-select, press ENTER to quit"
             self._im[k]['cmap'] = 'gray'
-            self._im[k]['type'] = 'image & line'
+            self._im[k]['type'] = 'image'
 
         else:
             print(_BColours.WARNING, "Plot type is undefined.", _BColours.ENDC)
@@ -802,7 +856,7 @@ class PecanPie(object):
 
         t.toc()
 
-    def switch_idx_to_intensity(self):
+    def switch_idx_to_value(self, value):
         """
         Switch index in label_mask to max dfof if index belongs to cells_to_plot
         Switch index in label_mask to 0 if index belongs to cells_to_process but not cells_to_plot
@@ -817,24 +871,18 @@ class PecanPie(object):
 
         """
 
-        def switch_val(x):
-            return new_vals[old_vals.index(x)] if x in old_vals else x
+        a = self.label_mask.astype('int')
+        a = a.reshape((self.label_mask.size,))
+        val_old = np.array(self.metadata['ROInum'].astype('int') + 1)
+        val_new = np.array(value)
 
-        # get max intensity for each cell
-        max_dfof = np.max(self.dfof, axis=1)  # axis = 1 for the time dimension
-
-        # substitute cells in process but not in plot with 0
-        cells_not_to_plot = np.array(list(filter(lambda x: x not in self.cells_to_plot, self.cells_to_process))).astype(
-            'int')
-        max_dfof[cells_not_to_plot] = 0
-
-        # substitute cells to process with intensity
-        max_dfof = max_dfof[self.cells_to_process]
-        old_vals = list(self.cells_to_process + 1)
-        new_vals = list(max_dfof)
-        vc = np.vectorize(switch_val)
-
-        return vc(self.label_mask)
+        arr = np.empty(a.max() + 1, dtype='float')
+        arr[val_old] = val_new
+        a = arr[a]
+        a[a==None] = 0  # DO NOT change to "a is None"
+        a = a.reshape((self.label_mask.shape[0], self.label_mask.shape[1]))
+        a = np.array(a, dtype='float')
+        return a
 
     def plot_fig(self, _ion=False):
         """
@@ -861,6 +909,8 @@ class PecanPie(object):
 
                 if self._im[k]['type'] == 'image':
                     plt.imshow(self._im[k]['imdata'], cmap=self._im[k]['cmap'])
+                    if self._im[k]['overlay'] is not None:
+                        self.overlay_handle = plt.imshow(self._im[k]['overlay'], cmap='pp_cmap')
 
                 elif self._im[k]['type'] == 'image & line':
                     plt.imshow(self._im[k]['imdata'], cmap=self._im[k]['cmap'])
@@ -975,6 +1025,7 @@ class PecanPie(object):
         ax = plt.gca()
         tmp_selection = self._tmp
 
+        # display ROInum while cursor hover on cell
         cursor = mplcursors.cursor(hover=mplcursors.HoverMode.Transient)
 
         @cursor.connect("add")
@@ -984,7 +1035,6 @@ class PecanPie(object):
             cursor_y = round(cursor_y)
             ROInum = int(self.label_mask[cursor_y, cursor_x] - 1)  # -1 to convert label to ROInum
             if ROInum != -1:
-
                 sel.annotation.set(text=f"ROI: {ROInum}",
                                    bbox=dict(boxstyle=None, fc="lightblue", ec="lightblue", alpha=0.5))
             else:
@@ -992,20 +1042,27 @@ class PecanPie(object):
 
         while True:
             try:
+
                 pts = np.rint(np.array(plt.ginput(1, timeout=-1)))  # timeout = -1 for no timeout
                 x = int(pts[0, 0])
                 y = int(pts[0, 1])
                 ROInum = int(self.label_mask[y, x] - 1)  # -1 to convert label to ROInum
 
                 if ROInum in tmp_selection:  # remove from selection
-                    n = int(np.where(self.cells_to_plot == ROInum)[0])
                     tmp_selection = np.delete(tmp_selection, np.where(tmp_selection == ROInum))
-                    plt.setp(ax.lines[n], visible=False)
+                    self.overlay_handle.remove()
+                    test_elements = np.array(tmp_selection)
+                    self.overlay_handle = plt.imshow(np.isin(self.contour_mask, test_elements + 1, invert=False),
+                                                     cmap='pp_cmap')
 
                 elif ROInum in self.cells_to_plot:  # add to selection
-                    n = int(np.where(self.cells_to_plot == ROInum)[0])
                     tmp_selection = np.sort(np.append(tmp_selection, ROInum))
-                    plt.setp(ax.lines[n], visible=True)
+                    t = _Timer(self._verbose)
+                    t.tic("remap contour")
+                    self.overlay_handle.remove()
+                    test_elements = np.array(tmp_selection)
+                    self.overlay_handle = plt.imshow(np.isin(self.contour_mask, test_elements + 1, invert=False),
+                                                     cmap='pp_cmap')
 
                 else:  # case where ROInum is not recognized, meaning a click on the empty parts of the plot.
                     continue
@@ -1092,6 +1149,33 @@ class _BColours:
     ENDC = '\033[0m'
     BOLD = '\033[1m'
     UNDERLINE = '\033[4m'
+
+
+# ------------------------------------------------------------------#
+#                       colormap for contour                        #
+# ------------------------------------------------------------------#
+def create_cmap(color):
+    """
+        Colourmap for overlaying contour on intensity
+
+        Parameters
+        ----------
+        color : color of contour for selected cells
+
+        Returns
+        -------
+        None.
+
+        """
+    color = np.array([mpl.colors.to_rgba(color)])
+    trans_color = np.array([[1, 1, 1, 0]])
+    color_array = np.concatenate((trans_color, color), axis=0)
+
+    # create a colormap object
+    map_object = LinearSegmentedColormap.from_list(name='pp_cmap', colors=color_array)
+
+    # register this new colormap with matplotlib
+    mpl.colormaps.register(cmap=map_object)
 
 
 # ------------------------------------------------------------------#

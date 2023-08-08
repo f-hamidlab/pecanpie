@@ -19,7 +19,7 @@ read_path = 'testdata/originals/'
 #                          creating object                          #
 # ------------------------------------------------------------------#
 # load .npy bindata from read_path and initiate pecanpie object
-s2p = pp.PecanPie(read_path, verbose=False)
+s2p = pp.PecanPie(read_path, verbose=True)
 s2p.create_metadata()
 
 # ------------------------------------------------------------------#
