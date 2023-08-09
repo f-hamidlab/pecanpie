@@ -1,7 +1,7 @@
 # This class object loads, processes, visualises data output from suite2p
 # Author                   : Jane Ling
 # Date of creation         : 22/06/2023
-# Date of last modification: 19/07/2023
+# Date of last modification: 09/08/2023
 
 # ------------------------------------------------------------------#
 #                         load packages                             #
@@ -475,6 +475,7 @@ class PecanPie(object):
             self.label_mask = self.fill_df(label_mask)
             contour_mask = find_boundaries(self.label_mask, connectivity=1, mode='inner', background=0)
             self.contour_mask = np.multiply(contour_mask, label_mask)
+            self.cells_to_process = np.array(self.metadata['ROInum']).astype('int')
 
         else:  # self.metadata has been defined before
             # compare new cell_to_process with current set
@@ -493,6 +494,7 @@ class PecanPie(object):
                 self.label_mask = label_mask + self.label_mask
                 contour_mask = find_boundaries(label_mask, connectivity=1, mode='inner', background=0)
                 self.contour_mask = np.multiply(contour_mask, label_mask) + self.contour_mask
+                self.cells_to_process = np.array(self.metadata['ROInum']).astype('int')
 
             # old_arr not in new_arr
             # -> remove cell from dataframe, label_mask and contour_mask
@@ -507,6 +509,19 @@ class PecanPie(object):
             self.print_metadata()
 
     def init_df(self, idx_list):
+        """
+        Initiate (rows of) dataframe (metadata) where ROInum is in idx_list.
+
+        Parameters
+        ----------
+        idx_list : ndarray
+            index list containing ROInums to be added to metadata
+
+        Returns
+        -------
+        df : dataframe
+            dataframe to contain metadata with most columns empty, except for ROInum and dfof
+        """
         # define columns for storing parameters to be calculated in later sessions
         max_dfof = np.max(self.dfof, axis=1)
         d = {'ROInum': idx_list, 'dfof': max_dfof[idx_list],
@@ -519,10 +534,23 @@ class PecanPie(object):
         return df
 
     def fill_df(self, label_mask):
+        """
+        Fill rows of dataframe (metadata) where ROInum is in label_mask.
+
+        Parameters
+        ----------
+        label_mask : ndarray
+            label_mask containing ROIs to be updated
+
+        Returns
+        -------
+        label_mask : ndarray
+            label_mask containing ROIs to be updated
+        """
         # get properties of the region and store in metadata
         regions = regionprops(label_mask.astype('int'))
         t1 = _Timer(verbose=True)
-        t1.tic("region props")
+        t1.tic("Calculating region properties")
 
         multiple_contour = [d for d in regions if d['euler_number'] > 1]
 
@@ -565,9 +593,10 @@ class PecanPie(object):
         t1.toc()
         # Trimming metadata to remove zero entries
         # area of cell has to be more than 1 pixel for calculation of major and minor axis
-        area_threshold = 1
-        df = self.metadata[self.metadata['area'].isnull()]
-        idx = np.array(df['ROInum'], dtype='int')
+        area_threshold = 5
+
+        # remove ROIs in label_mask
+        idx = np.array(self.metadata['ROInum'][self.metadata['area'] < area_threshold], dtype='int')
         old_val = np.array(label_mask, dtype='int')
         label_mask[np.isin(old_val, idx + 1)] = 0
         self.ori_metadata['skip'][idx] = 1
@@ -577,7 +606,7 @@ class PecanPie(object):
 
         # calculations for other items in metadata
         # ref: https://imagej.nih.gov/ij/docs/guide/146-30.html
-        # self.metadata['aspect_ratio'] = self.metadata['major_axis'] / self.metadata['minor_axis']
+        self.metadata['aspect_ratio'] = self.metadata['major_axis'] / self.metadata['minor_axis']
         self.metadata['circularity'] = 4 * np.pi * np.divide(self.metadata['area'],
                                                              np.power(self.metadata['perimeter'], 2))
         self.metadata['compact'] = 4 / np.pi * np.divide(self.metadata['area'],
@@ -601,38 +630,55 @@ class PecanPie(object):
         -------
         None.
         """
+        t1 = _Timer(verbose=True)
+        t1.tic("Getting label mask")
         label_mask = np.zeros((self.ops['Ly'], self.ops['Lx']), dtype='int')
         # remove indexes if the cells have been computed before and area is None
         idx = np.nonzero(np.array(self.ori_metadata['skip']))
         idx = idx[0]
-        idx_list = idx_list[np.isin(idx_list, idx, invert=True)]
+        idx_list = idx_list[np.isin(idx_list, idx, invert=True)]  # get index not in the skip list
 
-        for n, m in enumerate(idx_list):
-            # m is the index to the ROI in stat
-            # n is the index to the ROI in the new metadata
-            ypix = self.stat[m]['ypix'][~self.stat[m]['overlap']]
-            xpix = self.stat[m]['xpix'][~self.stat[m]['overlap']]
+        print("idx list =", idx_list)
+        if len(idx_list) != 0:
+            for n, m in enumerate(idx_list):
+                # m is the index to the ROI in stat
+                # n is the index to the ROI in the new metadata
+                ypix = self.stat[m]['ypix'][~self.stat[m]['overlap']]
+                xpix = self.stat[m]['xpix'][~self.stat[m]['overlap']]
 
-            # for storing the image of individual cell, changes over loops
-            im = np.zeros((self.ops['Ly'], self.ops['Lx']))
-            im[ypix, xpix] = 1
-            im = binary_closing(im, disk(4))  # size of disk set to 4 pixels for example data set. The size of disk
-            # should be set according to the maximum 'hole' observed in the dataset.
-            im = binary_opening(im, disk(2))  # size of disk set to 2 pixels, which is the width of axon in the
-            # example dataset
+                # for storing the image of individual cell, changes over loops
+                im = np.zeros((self.ops['Ly'], self.ops['Lx']))
+                im[ypix, xpix] = 1
+                im = binary_closing(im, disk(4))  # size of disk set to 4 pixels for example data set. The size of disk
+                # should be set according to the maximum 'hole' observed in the dataset.
+                im = binary_opening(im, disk(2))  # size of disk set to 2 pixels, which is the width of axon in the
+                # example dataset
 
-            # TODO: check that there is only one cell
+                # check that there is only one cell
+                contours = measure.find_contours(im)
+                if len(contours) > 1:
+                    lengths = [len(arr) for arr in contours]
+                    contours = contours[lengths.index(max(lengths))]
 
-            label_mask = label_mask + im * (m + 1)  # +1 such that the first element is not labeled as 0
+                    points = np.transpose(np.array(im.nonzero()))
+                    mask = measure.points_in_poly(points, contours)
+                    im[points[mask][:, 0], points[mask][:, 1]] = 1
+                    im[points[~mask][:, 0], points[~mask][:, 1]] = 0
 
-            # pixels with overlapping cells are set to zero.
-            im = np.where(im, label_mask, 0)
-            label_mask = np.where(im > m + 1, 0, label_mask)
+                label_mask = label_mask + im * (m + 1)  # +1 such that the first element is not labeled as 0
 
-        org_label_mask = org_label_mask.astype('int')
+                # pixels with overlapping cells are set to zero.
+                im = np.where(im, label_mask, 0)
+                label_mask = np.where(im > m + 1, 0, label_mask)
 
-        label_mask[np.multiply(label_mask, org_label_mask)] = 0
+            org_label_mask = org_label_mask.astype('int')
 
+            label_mask[np.multiply(label_mask, org_label_mask)] = 0
+
+            idx = idx_list[np.isin(idx_list, np.unique(label_mask)-1, invert=True)]
+            self.ori_metadata['skip'][idx] = 1
+
+        t1.toc()
         return label_mask
 
     def print_metadata(self):
@@ -730,8 +776,7 @@ class PecanPie(object):
     # ------------------------------------------------------------------#
     #                          data visualisation                       #
     # ------------------------------------------------------------------#
-    def create_fig(self, plottype, plot=True, filename=None):
-        # TODO: add other parameters for more flexible plot
+    def create_fig(self, plottype, plot=True, filename=None, data='dfof'):
         """
         Sets parameters for plotting according to plot type.
 
@@ -739,9 +784,10 @@ class PecanPie(object):
         ----------
         plottype : str
             'avg_bin' = plots the registered binary data averaged over time
-            'selected_cells' = plots the selected cells in peak delta F over F intensity
+            'user_defined' = plots the selected cells in user-defined parameter
             'contour' = plots the selected cells with their contours after morphological operations
             'axis' = plots the selected cells with their contours and axes after morphological operations
+
             'cell_selection' = (FOR INTERNAL USE) for internactive selection of cells. Plots all cells with green
                                contour. Contours of cells not in self._tmp would be invisible.
 
@@ -750,6 +796,9 @@ class PecanPie(object):
 
         filename : str
             Filename of figure to save. If filename is not set, the figure will NOT be saved. (Default) None
+
+        data : str
+            Parameter from self.metadata to plot. (Default) dfof
 
         Returns
         -------
@@ -760,12 +809,22 @@ class PecanPie(object):
         t = _Timer(self._verbose)
         t.tic("Creating plot for " + plottype + "...")
 
+        # check that the data column exist in the metadata
+        if data not in self.metadata.columns:
+            print(_BColours.WARNING, "Data specified does not exists in self.metadata. Skipping the current plot.",
+                  _BColours.ENDC)
+            return 0
+
         # check the current number of plots
         if not self._im[0]:  # the first dictionary is empty
             k = 0
         else:  # the first dictionary is NOT empty. Append to the list of dictionaries
             k = len(self._im)
             self._im.append({})
+
+        self._im[k]['overlay'] = None
+
+
 
         # for plotting of the average binary image
         if plottype == 'avg_bin':
@@ -779,16 +838,16 @@ class PecanPie(object):
                 print("data.bin does not exist. Plot type is not supported.")
 
         # for plotting ROIs in peak delta F over F intensity, the mask for ROI is from output of suite2p
-        elif plottype == 'selected_cells':
-            self._im[k]['imdata'] = self.switch_idx_to_value(self.metadata['dfof'])
-            self._im[k]['title'] = "Selected cells at peak intensity"
+        elif plottype == 'user_defined':
+            self._im[k]['imdata'] = self.switch_idx_to_value(self.metadata[data])
+            self._im[k]['title'] = "Selected cells " + data
             self._im[k]['cmap'] = 'gray'
             self._im[k]['type'] = 'image'
 
         # for plotting ROIs with their contours after morphological operations
         elif plottype == 'contour':
             self._im[k]['overlay'] = np.isin(self.contour_mask, self.cells_to_plot + 1)
-            self._im[k]['imdata'] = self.switch_idx_to_value(self.metadata['dfof'])
+            self._im[k]['imdata'] = self.switch_idx_to_value(self.metadata[data])
             self._im[k]['title'] = "Contours of selected cells"
             self._im[k]['cmap'] = 'gray'
             self._im[k]['type'] = 'image'
@@ -796,13 +855,9 @@ class PecanPie(object):
         # for plotting ROIs with their contours and axes after morphological operations
         elif plottype == 'axis':
             self._im[k]['line_data'] = []
-
+            self._im[k]['overlay'] = np.isin(self.contour_mask, self.cells_to_plot + 1)
             for n in self.cells_to_plot:
                 idx = self.metadata.index[self.metadata['ROInum'] == n]  # the index to the ROI in metadata
-
-                # get the contour of ROI
-                contour = self.metadata.loc[idx]['contour'].values[0]
-                self._im[k]['line_data'].append({'x': contour[:, 1], 'y': contour[:, 0]})
 
                 # for plotting the major and minor axes
                 centroid = self.metadata.loc[idx]['centroid'].values[0]
@@ -829,7 +884,7 @@ class PecanPie(object):
         elif plottype == 'cell_selection':
             test_elements = np.array(self._tmp)
             self._im[k]['overlay'] = np.isin(self.contour_mask, test_elements+1)
-            self._im[k]['imdata'] = self.switch_idx_to_value(self.metadata['dfof'])
+            self._im[k]['imdata'] = self.switch_idx_to_value(self.metadata[data])
             self._im[k]['title'] = "Click on cells to select or de-select, press ENTER to quit"
             self._im[k]['cmap'] = 'gray'
             self._im[k]['type'] = 'image'
@@ -876,12 +931,14 @@ class PecanPie(object):
         val_old = np.array(self.metadata['ROInum'].astype('int') + 1)
         val_new = np.array(value)
 
-        arr = np.empty(a.max() + 1, dtype='float')
+        val_new = val_new[np.isin(val_old, self.cells_to_plot + 1)]
+        val_old = val_old[np.isin(val_old, self.cells_to_plot + 1)]
+
+        arr = np.zeros((a.max() + 1,))
         arr[val_old] = val_new
         a = arr[a]
-        a[a==None] = 0  # DO NOT change to "a is None"
         a = a.reshape((self.label_mask.shape[0], self.label_mask.shape[1]))
-        a = np.array(a, dtype='float')
+
         return a
 
     def plot_fig(self, _ion=False):
@@ -898,6 +955,9 @@ class PecanPie(object):
         None.
 
         """
+        if not self._im[0]:  # check that the first image is not empty
+            return 0
+
         for k in range(0, len(self._im)):
             if self._im[k]['plot'] is True:
                 plt.figure(self._im[k]['canvas'])
@@ -914,6 +974,8 @@ class PecanPie(object):
 
                 elif self._im[k]['type'] == 'image & line':
                     plt.imshow(self._im[k]['imdata'], cmap=self._im[k]['cmap'])
+                    if self._im[k]['overlay'] is not None:
+                        self.overlay_handle = plt.imshow(self._im[k]['overlay'], cmap='pp_cmap')
 
                     num_lines = len(self._im[k]['line_data'])
                     for n in range(num_lines):
@@ -1022,7 +1084,6 @@ class PecanPie(object):
             temporary selection of cells
 
         """
-        ax = plt.gca()
         tmp_selection = self._tmp
 
         # display ROInum while cursor hover on cell
