@@ -382,6 +382,8 @@ class PecanPie(object):
             get_data_from_stat(ncells, 'solidity', 'solidity')
 
             self.ori_metadata['skip'] = np.zeros(ncells)
+            if self._verbose:
+                self.print_ori_metadata()
 
             t.toc()  # print elapsed time
 
@@ -416,31 +418,23 @@ class PecanPie(object):
         table.add_column("Compact", justify="center")
         table.add_column("Solidity", justify="center")
 
-        area = np.multiply(self.iscell[:, 0], self.ori_metadata.area.values[:])
-        radius = np.multiply(self.iscell[:, 0], self.ori_metadata.radius.values[:])
-        aspect_ratio = np.multiply(self.iscell[:, 0], self.ori_metadata.aspect_ratio.values[:])
-        compact = np.multiply(self.iscell[:, 0], self.ori_metadata.compact.values[:])
-        solidity = np.multiply(self.iscell[:, 0], self.ori_metadata.solidity.values[:])
-
+        # for cells
+        df = self.ori_metadata[self.ori_metadata['iscell'] == 1]
         table.add_row("Cell",
-                      f"{np.mean(area):0.1f} " + plus_minus + f" {np.std(area):0.1f}",
-                      f"{np.mean(radius):0.1f} " + plus_minus + f" {np.std(radius):0.1f}",
-                      f"{np.mean(aspect_ratio):0.1f} " + plus_minus + f" {np.std(aspect_ratio):0.1f}",
-                      f"{np.mean(compact):0.1f} " + plus_minus + f" {np.std(compact):0.1f}",
-                      f"{np.mean(solidity):0.1f} " + plus_minus + f" {np.std(solidity):0.1f}")
+                      f"{np.mean(df['area']):0.1f} " + plus_minus + f" {np.std(df['area']):0.1f}",
+                      f"{np.mean(df['radius']):0.1f} " + plus_minus + f" {np.std(df['radius']):0.1f}",
+                      f"{np.mean(df['aspect_ratio']):0.1f} " + plus_minus + f" {np.std(df['aspect_ratio']):0.1f}",
+                      f"{np.mean(df['compact']):0.1f} " + plus_minus + f" {np.std(df['compact']):0.1f}",
+                      f"{np.mean(df['solidity']):0.1f} " + plus_minus + f" {np.std(df['solidity']):0.1f}")
 
-        area = np.multiply(-(self.iscell[:, 0] - 1), self.ori_metadata.area.values[:])
-        radius = np.multiply(-(self.iscell[:, 0] - 1), self.ori_metadata.radius.values[:])
-        aspect_ratio = np.multiply(-(self.iscell[:, 0] - 1), self.ori_metadata.aspect_ratio.values[:])
-        compact = np.multiply(-(self.iscell[:, 0] - 1), self.ori_metadata.compact.values[:])
-        solidity = np.multiply(-(self.iscell[:, 0] - 1), self.ori_metadata.solidity.values[:])
-
+        # for not cells
+        df = self.ori_metadata[self.ori_metadata['iscell'] == 0]
         table.add_row("Not Cell",
-                      f"{np.mean(area):0.1f} " + plus_minus + f" {np.std(area):0.1f}",
-                      f"{np.mean(radius):0.1f} " + plus_minus + f" {np.std(radius):0.1f}",
-                      f"{np.mean(aspect_ratio):0.1f} " + plus_minus + f" {np.std(aspect_ratio):0.1f}",
-                      f"{np.mean(compact):0.1f} " + plus_minus + f" {np.std(compact):0.1f}",
-                      f"{np.mean(solidity):0.1f} " + plus_minus + f" {np.std(solidity):0.1f}")
+                      f"{np.mean(df['area']):0.1f} " + plus_minus + f" {np.std(df['area']):0.1f}",
+                      f"{np.mean(df['radius']):0.1f} " + plus_minus + f" {np.std(df['radius']):0.1f}",
+                      f"{np.mean(df['aspect_ratio']):0.1f} " + plus_minus + f" {np.std(df['aspect_ratio']):0.1f}",
+                      f"{np.mean(df['compact']):0.1f} " + plus_minus + f" {np.std(df['compact']):0.1f}",
+                      f"{np.mean(df['solidity']):0.1f} " + plus_minus + f" {np.std(df['solidity']):0.1f}")
 
         console = Console()
         console.print(table)
@@ -710,39 +704,23 @@ class PecanPie(object):
         table.add_column("Compact", justify="center")
         table.add_column("Solidity", justify="center")
 
-        area = np.multiply(self.metadata.iscell[:], self.metadata.area.values[:])
-        major_axis = np.multiply(self.metadata.iscell[:], self.metadata.major_axis.values[:])
-        aspect_ratio = np.multiply(self.metadata.iscell[:], self.metadata.aspect_ratio.values[:])
-        # orientation = np.multiply(self.metadata.iscell[:], self.metadata.orientation.values[:])
-        # circularity = np.multiply(self.metadata.iscell[:], self.metadata.circularity.values[:])
-        compact = np.multiply(self.metadata.iscell[:], self.metadata.compact.values[:])
-        solidity = np.multiply(self.metadata.iscell[:], self.metadata.solidity.values[:])
-
+        # for cells
+        df = self.metadata[self.metadata['iscell'] == 1]
         table.add_row("Cell",
-                      f"{np.mean(area):0.1f} " + plus_minus + f" {np.std(area):0.1f}",
-                      f"{np.mean(major_axis):0.1f} " + plus_minus + f" {np.std(major_axis):0.1f}",
-                      f"{np.mean(aspect_ratio):0.1f} " + plus_minus + f" {np.std(aspect_ratio):0.1f}",
-                      # f"{np.mean(orientation):0.1f} " + plus_minus + f" {np.std(orientation):0.1f}",
-                      # f"{np.mean(circularity):0.1f} " + plus_minus + f" {np.std(circularity):0.1f}",
-                      f"{np.mean(compact):0.1f} " + plus_minus + f" {np.std(compact):0.1f}",
-                      f"{np.mean(solidity):0.1f} " + plus_minus + f" {np.std(solidity):0.1f}")
+                      f"{np.mean(df['area']):0.1f} " + plus_minus + f" {np.std(df['area']):0.1f}",
+                      f"{np.mean(df['major_axis']):0.1f} " + plus_minus + f" {np.std(df['major_axis']):0.1f}",
+                      f"{np.mean(df['aspect_ratio']):0.1f} " + plus_minus + f" {np.std(df['aspect_ratio']):0.1f}",
+                      f"{np.mean(df['compact']):0.1f} " + plus_minus + f" {np.std(df['compact']):0.1f}",
+                      f"{np.mean(df['solidity']):0.1f} " + plus_minus + f" {np.std(df['solidity']):0.1f}")
 
-        area = np.multiply(-(self.metadata.iscell[:] - 1), self.metadata.area.values[:])
-        major_axis = np.multiply(-(self.metadata.iscell[:] - 1), self.metadata.major_axis.values[:])
-        aspect_ratio = np.multiply(-(self.metadata.iscell[:] - 1), self.metadata.aspect_ratio.values[:])
-        # orientation = np.multiply(-(self.metadata.iscell[:] - 1), self.metadata.orientation.values[:])
-        # circularity = np.multiply(-(self.metadata.iscell[:] - 1), self.metadata.circularity.values[:])
-        compact = np.multiply(-(self.metadata.iscell[:] - 1), self.metadata.compact.values[:])
-        solidity = np.multiply(-(self.metadata.iscell[:] - 1), self.metadata.solidity.values[:])
-
+        # for not cells
+        df = self.metadata[self.metadata['iscell'] == 0]
         table.add_row("Not Cell",
-                      f"{np.mean(area):0.1f} " + plus_minus + f" {np.std(area):0.1f}",
-                      f"{np.mean(major_axis):0.1f} " + plus_minus + f" {np.std(major_axis):0.1f}",
-                      f"{np.mean(aspect_ratio):0.1f} " + plus_minus + f" {np.std(aspect_ratio):0.1f}",
-                      # f"{np.mean(orientation):0.1f} " + plus_minus + f" {np.std(orientation):0.1f}",
-                      # f"{np.mean(circularity):0.1f} " + plus_minus + f" {np.std(circularity):0.1f}",
-                      f"{np.mean(compact):0.1f} " + plus_minus + f" {np.std(compact):0.1f}",
-                      f"{np.mean(solidity):0.1f} " + plus_minus + f" {np.std(solidity):0.1f}")
+                      f"{np.mean(df['area']):0.1f} " + plus_minus + f" {np.std(df['area']):0.1f}",
+                      f"{np.mean(df['major_axis']):0.1f} " + plus_minus + f" {np.std(df['major_axis']):0.1f}",
+                      f"{np.mean(df['aspect_ratio']):0.1f} " + plus_minus + f" {np.std(df['aspect_ratio']):0.1f}",
+                      f"{np.mean(df['compact']):0.1f} " + plus_minus + f" {np.std(df['compact']):0.1f}",
+                      f"{np.mean(df['solidity']):0.1f} " + plus_minus + f" {np.std(df['solidity']):0.1f}")
 
         console = Console()
         console.print(table)
@@ -767,7 +745,7 @@ class PecanPie(object):
         """
         self.check_cells_to_process(cells_to_process)
         self.check_cells_to_plot(cells_to_plot)
-        self.create_metadata()
+        self.create_metadata(_print=self._verbose)
 
     # ------------------------------------------------------------------#
     #                           data analysis                           #
@@ -1042,7 +1020,7 @@ class PecanPie(object):
 
         self.cells_to_process = self.get_selection()
         self.cells_to_plot = np.array(list(set(self.cells_to_process).intersection(tmp_selection_plot)))
-        self.create_metadata()
+        self.create_metadata(_print=self._verbose)
 
         self._tmp = []
 
