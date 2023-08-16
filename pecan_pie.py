@@ -1,7 +1,7 @@
 # This class object loads, processes, visualises data output from suite2p
 # Author                   : Jane Ling
 # Date of creation         : 22/06/2023
-# Date of last modification: 09/08/2023
+# Date of last modification: 16/08/2023
 
 # ------------------------------------------------------------------#
 #                         load packages                             #
@@ -10,19 +10,22 @@
 import numpy as np
 import math
 import matplotlib as mpl
+import matplotlib.colors as colors
+import matplotlib.cm as cmx
 import matplotlib.pyplot as plt
-from matplotlib.colors import LinearSegmentedColormap
 import mplcursors
 import os
 import pandas as pd
-
 # import pickle
 from rich.console import Console
 from rich.table import Table
+from scipy.ndimage import uniform_filter1d
 from skimage import measure
 from skimage.measure import regionprops
 from skimage.morphology import disk, binary_closing, binary_opening
 from skimage.segmentation import find_boundaries
+from sklearn.decomposition import PCA
+from sklearn.preprocessing import PowerTransformer
 import time
 
 mpl.use('TkAgg')  # need this line, otherwise a pycharm console error would occur
@@ -103,6 +106,7 @@ class PecanPie(object):
 
         # calculate delta F over F
         self.dfof = self.cal_dfof()
+        self.dfof_pp, self.spks_pp = self.cal_dfof_spks()
 
         t.tic("Defining other parameters...")
 
@@ -517,8 +521,25 @@ class PecanPie(object):
             dataframe to contain metadata with most columns empty, except for ROInum and dfof
         """
         # define columns for storing parameters to be calculated in later sessions
+        # maximum delta F over F0
         max_dfof = np.max(self.dfof, axis=1)
-        d = {'ROInum': idx_list, 'dfof': max_dfof[idx_list],
+
+        # the number of spikes per second
+        spike_rate = np.count_nonzero(self.spks_pp, axis=1) / self.ops['nframes'] * self.ops['fs']
+
+        # maximum spike frequency
+        # The maximum number of reconstructed spikes per sampling interval 0.5 s
+        window_time = 50  # [s]
+        window_shape = window_time * self.ops['fs']
+        window_shape = np.round(window_shape).astype('int')
+        spike_freq = uniform_filter1d(self.spks_pp, size=window_shape)
+        max_spike_freq = np.max(spike_freq, axis=1)
+
+        # initialize the dataframe
+        d = {'ROInum': idx_list,
+             'dfof': max_dfof[idx_list],
+             'spike_rate': spike_rate[idx_list],
+             'max_spike_freq': max_spike_freq[idx_list],
              'area': None, 'perimeter': None, 'centroid': None, 'orientation': None,
              'major_axis': None, 'minor_axis': None, 'aspect_ratio': None, 'circularity': None, 'compact': None,
              'solidity': None, 'iscell': None}
@@ -551,7 +572,9 @@ class PecanPie(object):
         # if any fo the regions has multiple contours, remove the smaller contour
         if multiple_contour:
             for props in multiple_contour:
-                idx = self.metadata.index[self.metadata['ROInum'] == props.label - 1]  # the index to the ROI in metadata
+                idx = self.metadata.index[self.metadata['ROInum'] == props.label - 1]
+                # the index to the ROI in metadata
+
                 n = idx.values[0]
                 contours = measure.find_contours(label_mask == self.metadata['ROInum'][n] + 1)
                 lengths = [len(arr) for arr in contours]
@@ -632,7 +655,6 @@ class PecanPie(object):
         idx = idx[0]
         idx_list = idx_list[np.isin(idx_list, idx, invert=True)]  # get index not in the skip list
 
-        print("idx list =", idx_list)
         if len(idx_list) != 0:
             for n, m in enumerate(idx_list):
                 # m is the index to the ROI in stat
@@ -669,7 +691,7 @@ class PecanPie(object):
 
             label_mask[np.multiply(label_mask, org_label_mask)] = 0
 
-            idx = idx_list[np.isin(idx_list, np.unique(label_mask)-1, invert=True)]
+            idx = idx_list[np.isin(idx_list, np.unique(label_mask) - 1, invert=True)]
             self.ori_metadata['skip'][idx] = 1
 
         t1.toc()
@@ -750,10 +772,139 @@ class PecanPie(object):
     # ------------------------------------------------------------------#
     #                           data analysis                           #
     # ------------------------------------------------------------------#
+    def pca(self, grouping=None, grouping_label=None):
+
+        # define parameters for pca
+        df = self.metadata[['iscell', 'dfof', 'spike_rate', 'max_spike_freq', 'area']].astype('float')
+
+        # Scaling of data
+        std_scaler = PowerTransformer()
+        scaled_df = std_scaler.fit_transform(df)
+
+        # for scatter plot
+        pca = PCA(n_components=df.shape[1] - 1)
+        projected = pca.fit_transform(scaled_df)
+        plt.figure()
+        plt.ion()
+        if grouping is None:
+            grouping = self.metadata['iscell']
+        if grouping_label is None:
+            grouping_label = ['non-cell', 'cell']
+        uniq = list(set(grouping))
+
+        # Set the color map to match the number of groups
+        cmap = mpl.colormaps['rainbow']
+        cNorm = mpl.colors.Normalize(vmin=0, vmax=len(uniq) - 1)
+        scalarMap = cmx.ScalarMappable(norm=cNorm, cmap=cmap)
+        for i in range(len(uniq)):
+            idx = (grouping == uniq[i])
+            plt.scatter(projected[idx, 0], projected[idx, 1], color=scalarMap.to_rgba(i), edgecolor='none', alpha=0.5,
+                        label=grouping_label[i])
+        plt.xlabel('component 1')
+        plt.ylabel('component 2')
+        plt.title('Principal Component Analysis')
+        plt.legend(loc='upper left')
+        plt.show()
+
+        # hover on point to show ROInum
+        cursor = mplcursors.cursor(hover=mplcursors.HoverMode.Transient)
+
+        @cursor.connect("add")
+        def on_add(sel):
+            t = np.array(range(self.ops['nframes'])) / self.ops['fs']
+
+            cursor_x, cursor_y = sel.target
+            buffer = 0.015
+            x_idx = [i for i, x in enumerate(projected[:, 0]) if (x <= cursor_x + buffer) & (x >= cursor_x - buffer)]
+            y_idx = [i for i, y in enumerate(projected[:, 1]) if (y <= cursor_y + buffer) & (y >= cursor_y - buffer)]
+
+            def common_elements(list1, list2):
+                return [element for element in list1 if element in list2]
+
+            n = common_elements(x_idx, y_idx)
+            if n is not None:
+                n = n[0]  # in case there are overlapping points, take the first one
+                ROInum = int(self.metadata.iloc[n]['ROInum'])
+                sel.annotation.set(text=f"ROI: {ROInum}",
+                                   bbox=dict(boxstyle=None, fc="lightblue", ec="lightblue", alpha=0.5))
+
+                plt.figure(86538, figsize=(20, 4))
+                plt.clf()  # clear previous contents
+                ax1 = plt.gca()
+                ax2 = ax1.twinx()
+
+                p1, = ax1.plot(t, self.dfof_pp[n, :], 'b')
+                p2, = ax2.plot(t, self.spks_pp[n, :], 'k', alpha=0.5)
+
+                ax1.set_xlim(t[0], t[-1])
+                ax1.set_xlabel('Time [s]')
+                ax1.set_ylabel('dfof')
+                ax2.set_ylabel('spikes')
+                ax1.yaxis.label.set_color(p1.get_color())
+                ax2.yaxis.label.set_color(p2.get_color())
+                plt.title(f"ROI: {ROInum}")
+
+                tkw = dict(size=4, width=1.5)
+                ax1.tick_params(axis='x', **tkw)
+                ax1.tick_params(axis='y', colors=p1.get_color(), **tkw)
+                ax2.tick_params(axis='y', colors=p2.get_color(), **tkw)
+
+        # Explained variance ratio per principal component
+        nums = np.arange(df.shape[1])
+        var_ratio = []
+        for num in nums:
+            pca = PCA(n_components=num)
+            pca.fit(scaled_df)
+            var_ratio.append(np.sum(pca.explained_variance_ratio_))
+
+        plt.figure()
+        plt.grid()
+        plt.plot(nums, var_ratio, marker='o')
+        plt.xlabel('n_components')
+        plt.ylabel('Explained variance ratio')
+        plt.title('n_components vs. Explained Variance Ratio')
+
+        # contribution of each column in each principal component
+        loadings = pd.DataFrame(pca.components_[0:pca.n_components, :], columns=df.columns)
+        maxPC = 1.01 * np.max(np.max(np.abs(loadings.loc[0:pca.n_components, :])))
+        f, axes = plt.subplots(pca.n_components, 1, figsize=(10, 6), sharex=True)
+        for i, ax in enumerate(axes):
+            pc_loadings = loadings.loc[i, :]
+            colors = ['C0' if l > 0 else 'C1' for l in pc_loadings]
+            ax.axhline(color='#888888')
+            pc_loadings.plot.bar(ax=ax, color=colors)
+            ax.set_ylabel(f'PC{i + 1}')
+            ax.set_ylim(-maxPC, maxPC)
+        plt.tight_layout()
+
+        plt.show()
+
+    def cal_dfof_spks(self):
+
+        # thresholding for spks
+        # spks_sd = np.std(self.spks, axis=1)
+        # spks_mean = np.mean(self.spks, axis=1)
+        # threshold = spks_sd * 5 + spks_mean
+        # spks_pp = np.multiply(self.spks, self.spks > threshold[:, None])
+        a = self.spks.reshape([1,-1])
+        a_sd = np.std(a[a > 0])
+        a_mean = np.mean(a[a > 0])
+        threshold = a_mean + a_sd*3
+        spks_pp = np.multiply(self.spks, self.spks > threshold)
+
+        # moving average for dfof
+        window_time = 2  # [s]
+        window_shape = window_time * self.ops['fs']
+        window_shape = np.round(window_shape).astype('int')
+        dfof_pp = uniform_filter1d(self.dfof, size=window_shape)
+
+        return dfof_pp, spks_pp
+
 
     # ------------------------------------------------------------------#
     #                          data visualisation                       #
     # ------------------------------------------------------------------#
+
     def create_fig(self, plottype, plot=True, filename=None, data='dfof'):
         """
         Sets parameters for plotting according to plot type.
@@ -801,8 +952,6 @@ class PecanPie(object):
             self._im.append({})
 
         self._im[k]['overlay'] = None
-
-
 
         # for plotting of the average binary image
         if plottype == 'avg_bin':
@@ -861,7 +1010,7 @@ class PecanPie(object):
         # plotting all ROIs from stat for cell selection
         elif plottype == 'cell_selection':
             test_elements = np.array(self._tmp)
-            self._im[k]['overlay'] = np.isin(self.contour_mask, test_elements+1)
+            self._im[k]['overlay'] = np.isin(self.contour_mask, test_elements + 1)
             self._im[k]['imdata'] = self.switch_idx_to_value(self.metadata[data])
             self._im[k]['title'] = "Click on cells to select or de-select, press ENTER to quit"
             self._im[k]['cmap'] = 'gray'
@@ -947,11 +1096,13 @@ class PecanPie(object):
 
                 if self._im[k]['type'] == 'image':
                     plt.imshow(self._im[k]['imdata'], cmap=self._im[k]['cmap'])
+                    plt.colorbar()
                     if self._im[k]['overlay'] is not None:
                         self.overlay_handle = plt.imshow(self._im[k]['overlay'], cmap='pp_cmap')
 
                 elif self._im[k]['type'] == 'image & line':
                     plt.imshow(self._im[k]['imdata'], cmap=self._im[k]['cmap'])
+                    plt.colorbar()
                     if self._im[k]['overlay'] is not None:
                         self.overlay_handle = plt.imshow(self._im[k]['overlay'], cmap='pp_cmap')
 
@@ -1211,7 +1362,7 @@ def create_cmap(color):
     color_array = np.concatenate((trans_color, color), axis=0)
 
     # create a colormap object
-    map_object = LinearSegmentedColormap.from_list(name='pp_cmap', colors=color_array)
+    map_object = colors.LinearSegmentedColormap.from_list(name='pp_cmap', colors=color_array)
 
     # register this new colormap with matplotlib
     mpl.colormaps.register(cmap=map_object)
